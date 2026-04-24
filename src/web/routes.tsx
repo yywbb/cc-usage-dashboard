@@ -4,6 +4,7 @@ import ProjectsList from './pages/Projects/List.js';
 import ProjectDetail from './pages/Projects/Detail.js';
 import SessionsList from './pages/Sessions/List.js';
 import SessionDetail from './pages/Sessions/Detail.js';
+import Cost from './pages/Cost/index.js';
 
 export default function AppRoutes() {
   return (
@@ -14,6 +15,7 @@ export default function AppRoutes() {
       <Route path="/projects/:b64" element={<ProjectDetail />} />
       <Route path="/sessions" element={<SessionsList />} />
       <Route path="/sessions/:sessionId" element={<SessionDetail />} />
+      <Route path="/cost" element={<Cost />} />
       <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
   );
