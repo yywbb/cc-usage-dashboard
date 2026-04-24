@@ -1,48 +1,73 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Descriptions, Table, Row, Col, Tag } from 'antd';
+import { Card, Table, Row, Col, Tag } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import { api } from '../../api/client.js';
 import type { MessageRow } from '../../../shared/types.js';
+import PageHeader from '../../components/PageHeader.js';
+import KpiCard from '../../components/KpiCard.js';
+import { useTheme } from '../../theme/useTheme.js';
+import { echartsThemeName } from '../../theme/echarts.js';
 
 interface Detail {
-  session: { sessionId: string; projectDir: string; startedAt: number; endedAt: number; messageCount: number; totalCostUsd: number };
+  session: {
+    sessionId: string; projectDir: string;
+    startedAt: number; endedAt: number;
+    messageCount: number; totalCostUsd: number;
+  };
   messages: MessageRow[];
   toolDistribution: { tool: string; count: number; share: number }[];
 }
 
+function hashColor(name: string): string {
+  const palette = ['magenta', 'red', 'volcano', 'orange', 'gold', 'lime', 'green', 'cyan', 'blue', 'geekblue', 'purple'];
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return palette[Math.abs(h) % palette.length];
+}
+
 export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  const { mode } = useTheme();
   const { data } = useQuery({
     queryKey: ['session', sessionId],
     queryFn: () => api.get<Detail>(`/api/sessions/${sessionId}`),
   });
   if (!data) return null;
 
+  const totalTokens = data.messages.reduce(
+    (a, m) => a + m.inputTokens + m.outputTokens + m.cacheCreate + m.cacheRead, 0
+  );
+  const durationMin = Math.round((data.session.endedAt - data.session.startedAt) / 60000);
+
   return (
     <>
-      <Card style={{ marginBottom: 16 }}>
-        <Descriptions column={3} size="small">
-          <Descriptions.Item label="Session">{data.session.sessionId}</Descriptions.Item>
-          <Descriptions.Item label="开始">{new Date(data.session.startedAt).toLocaleString()}</Descriptions.Item>
-          <Descriptions.Item label="成本">${data.session.totalCostUsd.toFixed(4)}</Descriptions.Item>
-          <Descriptions.Item label="消息数">{data.session.messageCount}</Descriptions.Item>
-        </Descriptions>
-      </Card>
+      <PageHeader
+        title={`会话 ${data.session.sessionId.slice(0, 8)}…`}
+        subtitle={new Date(data.session.startedAt).toLocaleString()}
+      />
 
-      <Row gutter={16}>
-        <Col span={18}>
+      <Row gutter={14} style={{ marginBottom: 16 }}>
+        <Col span={6}><KpiCard title="消息数" value={data.session.messageCount} /></Col>
+        <Col span={6}><KpiCard title="时长" value={durationMin} suffix=" 分" /></Col>
+        <Col span={6}><KpiCard title="总 Token" value={totalTokens} /></Col>
+        <Col span={6}><KpiCard title="成本" value={data.session.totalCostUsd} precision={4} suffix="$" /></Col>
+      </Row>
+
+      <Row gutter={14} style={{ marginBottom: 16 }}>
+        <Col span={16}>
           <Card title="消息时间线 · token 分布">
             <ReactECharts
-              style={{ height: 300 }}
+              theme={echartsThemeName(mode)}
+              style={{ height: 280 }}
               option={{
                 tooltip: { trigger: 'axis' },
                 legend: { top: 'bottom' },
+                grid: { left: 50, right: 20, top: 20, bottom: 40 },
                 xAxis: { type: 'category', data: data.messages.map((_, i) => i + 1), name: '第 N 条消息' },
                 yAxis: { type: 'value', name: 'tokens' },
                 series: [
-                  { name: 'input',  type: 'bar', stack: 't', data: data.messages.map(m => m.inputTokens) },
-                  { name: 'output', type: 'bar', stack: 't', data: data.messages.map(m => m.outputTokens) },
+                  { name: 'input',        type: 'bar', stack: 't', data: data.messages.map(m => m.inputTokens) },
+                  { name: 'output',       type: 'bar', stack: 't', data: data.messages.map(m => m.outputTokens) },
                   { name: 'cache-create', type: 'bar', stack: 't', data: data.messages.map(m => m.cacheCreate) },
                   { name: 'cache-read',   type: 'bar', stack: 't', data: data.messages.map(m => m.cacheRead) },
                 ],
@@ -50,14 +75,17 @@ export default function SessionDetail() {
             />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card title="工具调用分布">
             <ReactECharts
-              style={{ height: 300 }}
+              theme={echartsThemeName(mode)}
+              style={{ height: 280 }}
               option={{
                 tooltip: { trigger: 'item' },
+                legend: { bottom: 0, itemWidth: 8, itemHeight: 8 },
                 series: [{
-                  type: 'pie', radius: '70%',
+                  type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: true,
+                  label: { show: false }, labelLine: { show: false },
                   data: data.toolDistribution.map(t => ({ name: t.tool, value: t.count })),
                 }],
               }}
@@ -66,22 +94,50 @@ export default function SessionDetail() {
         </Col>
       </Row>
 
-      <Card title="消息详情" style={{ marginTop: 16 }}>
-        <Table
+      <Card title="消息详情">
+        <Table<MessageRow>
           size="small"
           rowKey="messageId"
           dataSource={data.messages}
           pagination={{ pageSize: 30 }}
+          expandable={{
+            expandedRowRender: (r) => (
+              <div style={{ fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {r.textPreview || <span style={{ opacity: 0.6 }}>(无文本预览)</span>}
+              </div>
+            ),
+            rowExpandable: (r) => !!r.textPreview,
+          }}
           columns={[
-            { title: '时间', dataIndex: 'timestamp', render: (v) => new Date(v).toLocaleTimeString() },
-            { title: 'role', dataIndex: 'role' },
-            { title: 'model', dataIndex: 'model' },
-            { title: 'input', dataIndex: 'inputTokens' },
-            { title: 'output', dataIndex: 'outputTokens' },
-            { title: 'cache-rd', dataIndex: 'cacheRead' },
-            { title: '$', dataIndex: 'costUsd', render: (v: number) => v.toFixed(4) },
-            { title: 'tools', dataIndex: 'toolNames',
-              render: (tools: string[]) => tools.map(t => <Tag key={t}>{t}</Tag>) },
+            { title: '时间', dataIndex: 'timestamp', width: 110, render: (v) => new Date(v).toLocaleTimeString() },
+            {
+              title: 'role', dataIndex: 'role', width: 90,
+              render: (r: string) => <Tag color={r === 'assistant' ? 'blue' : 'default'}>{r}</Tag>,
+            },
+            {
+              title: 'model', dataIndex: 'model', width: 160,
+              render: (m: string | null) => m ? <Tag color="geekblue">{m}</Tag> : null,
+            },
+            { title: 'input',   dataIndex: 'inputTokens',  align: 'right', width: 80 },
+            { title: 'output',  dataIndex: 'outputTokens', align: 'right', width: 80 },
+            { title: 'cache-rd', dataIndex: 'cacheRead',   align: 'right', width: 90 },
+            {
+              title: '$', dataIndex: 'costUsd', align: 'right', width: 90,
+              render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,
+            },
+            {
+              title: 'tools', dataIndex: 'toolNames',
+              render: (tools: string[]) => {
+                const shown = tools.slice(0, 3);
+                const rest = tools.length - shown.length;
+                return (
+                  <>
+                    {shown.map(t => <Tag key={t} color={hashColor(t)}>{t}</Tag>)}
+                    {rest > 0 && <Tag>+{rest}</Tag>}
+                  </>
+                );
+              },
+            },
             { title: 'preview', dataIndex: 'textPreview', ellipsis: true },
           ]}
         />
