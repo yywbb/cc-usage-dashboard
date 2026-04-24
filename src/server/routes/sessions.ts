@@ -1,21 +1,38 @@
 import type { FastifyInstance } from 'fastify';
 import type { Database as DatabaseType } from 'better-sqlite3';
-import { decodeProjectDir } from '../paths.js';
+
+function median(sorted: number[]): number {
+  if (sorted.length === 0) return 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
 
 export function registerSessions(app: FastifyInstance, db: DatabaseType) {
+  // projectDir query string accepts a comma-separated list of RAW project_dir values
+  // (as returned by /api/projects), not base64-encoded. project_dir strings come from
+  // folder names and never contain commas in practice.
   app.get('/api/sessions', async (req) => {
-    const q = req.query as { projectDir?: string; from?: string; to?: string; limit?: string; offset?: string };
-    const projectDir = q.projectDir ? decodeProjectDir(q.projectDir) : null;
+    const q = req.query as {
+      projectDir?: string; from?: string; to?: string; limit?: string; offset?: string;
+    };
+    const projectDirs = q.projectDir
+      ? q.projectDir.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
     const from = q.from ? new Date(q.from).getTime() : 0;
     const to = q.to ? new Date(q.to).getTime() : Date.now();
     const limit = Number(q.limit ?? 50);
     const offset = Number(q.offset ?? 0);
 
-    const whereProj = projectDir ? 'AND s.project_dir = @projectDir' : '';
-    const total = (db.prepare(
+    const projPlaceholders = projectDirs.map((_, i) => `@p${i}`).join(',');
+    const whereProj = projectDirs.length ? `AND s.project_dir IN (${projPlaceholders})` : '';
+    const projParams: Record<string, string> = {};
+    projectDirs.forEach((p, i) => (projParams[`p${i}`] = p));
+
+    const totalRow = db.prepare(
       `SELECT COUNT(*) as n FROM sessions s
        WHERE s.started_at BETWEEN @from AND @to ${whereProj}`
-    ).get({ from, to, projectDir }) as any).n;
+    ).get({ from, to, ...projParams }) as { n: number };
+    const total = totalRow.n;
 
     const rows = db.prepare(
       `SELECT s.session_id as sessionId, s.project_dir as projectDir,
@@ -26,12 +43,15 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
        FROM sessions s
        WHERE s.started_at BETWEEN @from AND @to ${whereProj}
        ORDER BY s.started_at DESC LIMIT @limit OFFSET @offset`
-    ).all({ from, to, projectDir, limit, offset }) as any[];
+    ).all({ from, to, limit, offset, ...projParams }) as Array<{
+      sessionId: string; projectDir: string; startedAt: number; endedAt: number;
+      messageCount: number; totalTokens: number; totalCostUsd: number;
+    }>;
 
     const items = rows.map(r => {
       const tools = db.prepare(
         `SELECT tool_names FROM messages WHERE session_id = ? AND tool_names IS NOT NULL AND tool_names != '[]'`
-      ).all(r.sessionId) as any[];
+      ).all(r.sessionId) as Array<{ tool_names: string }>;
       const counts = new Map<string, number>();
       for (const t of tools) {
         for (const name of JSON.parse(t.tool_names) as string[]) {
@@ -41,7 +61,24 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
       const topTools = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n);
       return { ...r, topTools };
     });
-    return { total, items };
+
+    const statRows = db.prepare(
+      `SELECT s.total_cost_usd as cost, s.ended_at - s.started_at as durMs
+       FROM sessions s
+       WHERE s.started_at BETWEEN @from AND @to ${whereProj}`
+    ).all({ from, to, ...projParams }) as Array<{ cost: number; durMs: number }>;
+
+    const totalCostUsd = statRows.reduce((a, r) => a + (r.cost ?? 0), 0);
+    const count = statRows.length;
+    const avgCostUsd = count > 0 ? totalCostUsd / count : 0;
+    const durations = statRows.map(r => Math.max(0, r.durMs ?? 0)).sort((a, b) => a - b);
+    const medianDurationMs = median(durations);
+
+    return {
+      total,
+      items,
+      stats: { count, totalCostUsd, avgCostUsd, medianDurationMs },
+    };
   });
 
   app.get('/api/sessions/:sid', async (req, reply) => {
@@ -54,7 +91,7 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
               total_cache_create as totalCacheCreate, total_cache_read as totalCacheRead,
               total_cost_usd as totalCostUsd
        FROM sessions WHERE session_id = ?`
-    ).get(sid) as any;
+    ).get(sid) as Record<string, unknown> | undefined;
     if (!session) return reply.code(404).send({ error: 'not found' });
 
     const messages = (db.prepare(
@@ -64,13 +101,13 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
               cost_usd as costUsd, stop_reason as stopReason,
               tool_names as toolNames, text_preview as textPreview
        FROM messages WHERE session_id = ? ORDER BY timestamp`
-    ).all(sid) as any[]).map(m => ({
+    ).all(sid) as Array<Record<string, unknown> & { toolNames: string | null }>).map(m => ({
       ...m,
       toolNames: m.toolNames ? JSON.parse(m.toolNames) : [],
     }));
 
     const counts = new Map<string, number>();
-    for (const m of messages) for (const t of m.toolNames) counts.set(t, (counts.get(t) ?? 0) + 1);
+    for (const m of messages) for (const t of m.toolNames as string[]) counts.set(t, (counts.get(t) ?? 0) + 1);
     const total = [...counts.values()].reduce((a, b) => a + b, 0) || 1;
     const toolDistribution = [...counts.entries()]
       .sort((a, b) => b[1] - a[1])

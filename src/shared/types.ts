@@ -89,3 +89,16 @@ export interface CostResponse {
 }
 
 export type RangeKey = 'today' | 'week' | 'month' | 'ytd' | 'all';
+
+export interface SessionsListStats {
+  count: number;
+  totalCostUsd: number;
+  avgCostUsd: number;
+  medianDurationMs: number;
+}
+
+export interface SessionsListResponse {
+  total: number;
+  items: SessionRow[];
+  stats: SessionsListStats;
+}

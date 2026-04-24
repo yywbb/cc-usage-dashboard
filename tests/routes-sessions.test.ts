@@ -40,4 +40,38 @@ describe('/api/sessions', () => {
       expect(body.toolDistribution.length).toBeGreaterThan(0);
     } finally { await cleanup(); }
   });
+
+  it('returns filter-wide stats alongside paginated items', async () => {
+    const { app, cleanup } = await seeded();
+    try {
+      const res = await app.inject({ method: 'GET', url: '/api/sessions?limit=10&offset=0' });
+      const body = res.json();
+      expect(body.stats).toBeDefined();
+      expect(body.stats.count).toBe(1);
+      expect(body.stats.totalCostUsd).toBeGreaterThanOrEqual(0);
+      expect(body.stats.avgCostUsd).toBeCloseTo(body.stats.totalCostUsd / body.stats.count, 6);
+      expect(body.stats.medianDurationMs).toBeGreaterThanOrEqual(0);
+    } finally { await cleanup(); }
+  });
+
+  it('filters by multiple projectDir values (comma separated)', async () => {
+    const { app, cleanup } = await seeded();
+    try {
+      const projRes = await app.inject({ method: 'GET', url: '/api/projects' });
+      const projects = projRes.json() as Array<{ projectDir: string }>;
+      const realDir = projects[0].projectDir;
+
+      const hitRes = await app.inject({
+        method: 'GET',
+        url: `/api/sessions?projectDir=${encodeURIComponent(realDir)},${encodeURIComponent('/nonexistent/path')}`,
+      });
+      expect(hitRes.json().total).toBe(1);
+
+      const missRes = await app.inject({
+        method: 'GET',
+        url: `/api/sessions?projectDir=${encodeURIComponent('/nonexistent/path')}`,
+      });
+      expect(missRes.json().total).toBe(0);
+    } finally { await cleanup(); }
+  });
 });
