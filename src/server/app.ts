@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { registerAdmin } from './routes/admin.js';
 import { registerOverview } from './routes/overview.js';
+import { registerProjects } from './routes/projects.js';
 
 export interface AppDeps {
   db: DatabaseType;
@@ -12,5 +13,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: false });
   registerAdmin(app, deps);
   registerOverview(app, deps.db);
+  registerProjects(app, deps.db);
   return app;
 }

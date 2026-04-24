@@ -1,0 +1,58 @@
+import type { FastifyInstance } from 'fastify';
+import type { Database as DatabaseType } from 'better-sqlite3';
+import { decodeProjectDir } from '../paths.js';
+import type { ProjectRow } from '../../shared/types.js';
+
+export function registerProjects(app: FastifyInstance, db: DatabaseType) {
+  app.get('/api/projects', async (req) => {
+    const q = req.query as { sortBy?: 'cost' | 'tokens' | 'sessions'; order?: 'asc' | 'desc' };
+    const sortBy = q.sortBy ?? 'cost';
+    const order = q.order === 'asc' ? 'ASC' : 'DESC';
+    const sortCol = {
+      cost: 'total_cost_usd',
+      tokens: 'total_tokens',
+      sessions: 'session_count',
+    }[sortBy];
+    const rows = db.prepare(
+      `SELECT p.project_dir as projectDir, p.display_name as displayName, p.real_path as realPath,
+              COUNT(s.session_id) as session_count,
+              COALESCE(SUM(s.total_input + s.total_output + s.total_cache_create + s.total_cache_read),0) as total_tokens,
+              COALESCE(SUM(s.total_cost_usd),0) as total_cost_usd,
+              p.first_seen_at as firstSeenAt, p.last_seen_at as lastSeenAt
+       FROM projects p
+       LEFT JOIN sessions s ON s.project_dir = p.project_dir
+       GROUP BY p.project_dir
+       ORDER BY ${sortCol} ${order}`
+    ).all() as any[];
+    const out: ProjectRow[] = rows.map(r => ({
+      projectDir: r.projectDir, displayName: r.displayName, realPath: r.realPath,
+      sessionCount: r.session_count, totalTokens: r.total_tokens, totalCostUsd: r.total_cost_usd,
+      avgTokensPerSession: r.session_count > 0 ? r.total_tokens / r.session_count : 0,
+      firstSeenAt: r.firstSeenAt, lastSeenAt: r.lastSeenAt,
+    }));
+    return out;
+  });
+
+  app.get('/api/projects/:b64/timeline', async (req) => {
+    const { b64 } = req.params as { b64: string };
+    const projectDir = decodeProjectDir(b64);
+    const daily = db.prepare(
+      `SELECT date(m.timestamp/1000,'unixepoch') as date,
+              SUM(m.input_tokens + m.output_tokens + m.cache_creation_tokens + m.cache_read_tokens) as tokens,
+              SUM(m.cost_usd) as costUsd,
+              COUNT(DISTINCT m.session_id) as sessionCount
+       FROM messages m
+       JOIN sessions s ON s.session_id = m.session_id
+       WHERE s.project_dir = ?
+       GROUP BY date ORDER BY date`
+    ).all(projectDir);
+    const topSessions = db.prepare(
+      `SELECT session_id as sessionId, total_cost_usd as totalCostUsd,
+              total_input + total_output + total_cache_create + total_cache_read as totalTokens,
+              message_count as messageCount, started_at as startedAt, ended_at as endedAt
+       FROM sessions WHERE project_dir = ?
+       ORDER BY total_cost_usd DESC LIMIT 20`
+    ).all(projectDir);
+    return { daily, topSessions };
+  });
+}
