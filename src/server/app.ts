@@ -4,6 +4,7 @@ import { registerAdmin } from './routes/admin.js';
 import { registerOverview } from './routes/overview.js';
 import { registerProjects } from './routes/projects.js';
 import { registerSessions } from './routes/sessions.js';
+import { registerCost } from './routes/cost.js';
 
 export interface AppDeps {
   db: DatabaseType;
@@ -16,5 +17,6 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerOverview(app, deps.db);
   registerProjects(app, deps.db);
   registerSessions(app, deps.db);
+  registerCost(app, deps.db);
   return app;
 }
