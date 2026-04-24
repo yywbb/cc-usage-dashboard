@@ -5,18 +5,21 @@ import { registerOverview } from './routes/overview.js';
 import { registerProjects } from './routes/projects.js';
 import { registerSessions } from './routes/sessions.js';
 import { registerCost } from './routes/cost.js';
+import { registerStatic } from './staticServe.js';
 
 export interface AppDeps {
   db: DatabaseType;
   projectsRoot: string;
+  webDir?: string;
 }
 
-export function buildApp(deps: AppDeps): FastifyInstance {
+export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   registerAdmin(app, deps);
   registerOverview(app, deps.db);
   registerProjects(app, deps.db);
   registerSessions(app, deps.db);
   registerCost(app, deps.db);
+  if (deps.webDir) await registerStatic(app, deps.webDir);
   return app;
 }

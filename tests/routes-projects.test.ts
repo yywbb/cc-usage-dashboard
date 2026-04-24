@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, mkdirSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-function seeded() {
+async function seeded() {
   const dir = mkdtempSync(join(tmpdir(), 'cc-proj-'));
   const projectsRoot = join(dir, 'projects');
   const proj = join(projectsRoot, 'D--test-proj');
@@ -15,13 +15,13 @@ function seeded() {
   copyFileSync('tests/fixtures/session-sample.jsonl', join(proj, 'sess-1.jsonl'));
   const db = openDb(join(dir, 'usage.db'));
   scanAll(db, projectsRoot);
-  const app = buildApp({ db, projectsRoot });
+  const app = await buildApp({ db, projectsRoot });
   return { app, proj, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 describe('/api/projects', () => {
   it('lists projects sorted by cost desc', async () => {
-    const { app, cleanup } = seeded();
+    const { app, cleanup } = await seeded();
     try {
       const res = await app.inject({ method: 'GET', url: '/api/projects?sortBy=cost' });
       const body = res.json();
@@ -31,7 +31,7 @@ describe('/api/projects', () => {
   });
 
   it('returns timeline for a project', async () => {
-    const { app, proj, cleanup } = seeded();
+    const { app, proj, cleanup } = await seeded();
     try {
       const b64 = encodeProjectDir(proj);
       const res = await app.inject({ method: 'GET', url: `/api/projects/${b64}/timeline?range=all` });

@@ -3,12 +3,14 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import open from 'open';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { scanAll } from './scanner/index.js';
 import { buildApp } from './app.js';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLAUDE_PROJECTS = join(homedir(), '.claude', 'projects');
 const DB_PATH = join(homedir(), '.cc-usage', 'usage.db');
 
@@ -40,7 +42,8 @@ program.command('start')
       const r = scanAll(db, CLAUDE_PROJECTS);
       console.log(chalk.gray(`  ${r.scannedFiles} files, +${r.newMessages} messages`));
     }
-    const app = buildApp({ db, projectsRoot: CLAUDE_PROJECTS });
+    const webDir = opts.dev ? undefined : resolve(__dirname, '../web');
+    const app = await buildApp({ db, projectsRoot: CLAUDE_PROJECTS, webDir });
     const port = await listenWithRetry(app, Number(opts.port));
     const url = `http://localhost:${port}`;
     console.log(chalk.green(`✓ cc-usage-dashboard on ${url}`));
@@ -49,7 +52,7 @@ program.command('start')
 
 program.command('recompute-cost').action(async () => {
   const db = openDb(DB_PATH);
-  const app = buildApp({ db, projectsRoot: CLAUDE_PROJECTS });
+  const app = await buildApp({ db, projectsRoot: CLAUDE_PROJECTS });
   const res = await app.inject({ method: 'POST', url: '/api/recompute-cost' });
   console.log(chalk.green(`✓ ${res.body}`));
   await app.close();

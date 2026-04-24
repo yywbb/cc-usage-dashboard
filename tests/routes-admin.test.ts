@@ -5,16 +5,16 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), 'cc-app-'));
   const db = openDb(join(dir, 'usage.db'));
-  const app = buildApp({ db, projectsRoot: 'tests/fixtures/projects' });
+  const app = await buildApp({ db, projectsRoot: 'tests/fixtures/projects' });
   return { app, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 describe('admin routes', () => {
   it('GET /api/health returns ok', async () => {
-    const { app, cleanup } = makeApp();
+    const { app, cleanup } = await makeApp();
     try {
       const res = await app.inject({ method: 'GET', url: '/api/health' });
       expect(res.statusCode).toBe(200);
@@ -23,7 +23,7 @@ describe('admin routes', () => {
   });
 
   it('POST /api/scan triggers a scan', async () => {
-    const { app, cleanup } = makeApp();
+    const { app, cleanup } = await makeApp();
     try {
       const res = await app.inject({ method: 'POST', url: '/api/scan' });
       expect(res.statusCode).toBe(200);

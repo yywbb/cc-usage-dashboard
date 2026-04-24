@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, mkdirSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-function seeded() {
+async function seeded() {
   const dir = mkdtempSync(join(tmpdir(), 'cc-ov-'));
   const projectsRoot = join(dir, 'projects');
   const proj = join(projectsRoot, 'D--test-proj');
@@ -14,13 +14,13 @@ function seeded() {
   copyFileSync('tests/fixtures/session-sample.jsonl', join(proj, 'sess-1.jsonl'));
   const db = openDb(join(dir, 'usage.db'));
   scanAll(db, projectsRoot);
-  const app = buildApp({ db, projectsRoot });
+  const app = await buildApp({ db, projectsRoot });
   return { app, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 describe('/api/overview', () => {
   it('returns totals and byModel', async () => {
-    const { app, cleanup } = seeded();
+    const { app, cleanup } = await seeded();
     try {
       const res = await app.inject({ method: 'GET', url: '/api/overview?range=all' });
       expect(res.statusCode).toBe(200);
