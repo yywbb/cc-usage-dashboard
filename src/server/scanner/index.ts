@@ -26,12 +26,10 @@ export function scanAll(db: DatabaseType, projectsRoot: string): ScanResult {
       realPath: reverseProjectDirName(dirName),
     });
 
-    const jsonlFiles = readdirSync(fullPath, { withFileTypes: true })
-      .filter(d => d.isFile() && d.name.endsWith('.jsonl'));
+    const jsonlFiles = walkJsonl(fullPath);
 
-    for (const f of jsonlFiles) {
-      const filePath = join(fullPath, f.name);
-      const sessionId = basename(f.name, '.jsonl');
+    for (const filePath of jsonlFiles) {
+      const sessionId = basename(filePath, '.jsonl');
       const added = scanOne(db, filePath, fullPath, sessionId);
       if (added > 0) {
         recomputeSession(db, sessionId);
@@ -42,6 +40,26 @@ export function scanAll(db: DatabaseType, projectsRoot: string): ScanResult {
   }
 
   return { scannedFiles, newMessages, durationMs: Date.now() - start };
+}
+
+function walkJsonl(dir: string): string[] {
+  const out: string[] = [];
+  const stack: string[] = [dir];
+  while (stack.length > 0) {
+    const cur = stack.pop()!;
+    let entries;
+    try {
+      entries = readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const full = join(cur, e.name);
+      if (e.isDirectory()) stack.push(full);
+      else if (e.isFile() && e.name.endsWith('.jsonl')) out.push(full);
+    }
+  }
+  return out;
 }
 
 function scanOne(

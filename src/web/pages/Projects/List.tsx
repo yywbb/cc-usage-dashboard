@@ -6,12 +6,14 @@ import type { ProjectRow } from '../../../shared/types.js';
 import PageHeader from '../../components/PageHeader.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
+import { useFormatTokens } from '../../format.js';
 
 function b64(p: string) { return btoa(p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
 export default function ProjectsList() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const fmtTokens = useFormatTokens();
   const { data, isLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.get<ProjectRow[]>('/api/projects?sortBy=cost'),
@@ -25,7 +27,12 @@ export default function ProjectsList() {
         loading={isLoading}
         rowKey="projectDir"
         dataSource={data ?? []}
-        pagination={{ pageSize: 30, showSizeChanger: false }}
+        pagination={{
+          defaultPageSize: 15,
+          pageSizeOptions: [10, 15, 20, 50, 100],
+          showSizeChanger: true,
+          showTotal: (total) => `共 ${total} 条`,
+        }}
         columns={[
           {
             title: '项目',
@@ -45,7 +52,7 @@ export default function ProjectsList() {
             dataIndex: 'totalTokens',
             align: 'right',
             width: 120,
-            render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toLocaleString()}</span>,
+            render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
           },
           {
             title: '成本 ($)',
@@ -70,7 +77,7 @@ export default function ProjectsList() {
             dataIndex: 'avgTokensPerSession',
             align: 'right',
             width: 110,
-            render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(v).toLocaleString()}</span>,
+            render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
           },
           {
             title: '最近活跃',

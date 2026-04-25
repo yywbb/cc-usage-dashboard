@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { scanAll } from '../scanner/index.js';
-import { computeCostUsd } from '../pricing.js';
+import { computeCostUsdWith, loadPriceTable } from '../pricing.js';
 import { recomputeSession } from '../scanner/writer.js';
 
 export interface AdminDeps {
@@ -26,9 +26,10 @@ export async function registerAdmin(app: FastifyInstance, deps: AdminDeps) {
        FROM messages WHERE model IS NOT NULL`
     ).all() as any[];
     const stmt = deps.db.prepare('UPDATE messages SET cost_usd = ? WHERE message_id = ?');
+    const priceTable = loadPriceTable(deps.db);
     const tx = deps.db.transaction(() => {
       for (const r of rows) {
-        const cost = computeCostUsd(r.model, {
+        const cost = computeCostUsdWith(priceTable, r.model, {
           inputTokens: r.input_tokens,
           outputTokens: r.output_tokens,
           cacheCreationTokens: r.cache_creation_tokens,

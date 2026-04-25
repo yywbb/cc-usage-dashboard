@@ -32,7 +32,7 @@ program.command('scan').action(async () => {
 });
 
 program.command('start')
-  .option('-p, --port <port>', 'HTTP port', '5173')
+  .option('-p, --port <port>', 'HTTP port', '47821')
   .option('--no-open', 'Do not auto-open browser')
   .option('--dev', 'Dev mode (no static serve)')
   .action(async (opts) => {
@@ -63,7 +63,7 @@ async function listenWithRetry(app: any, desiredPort: number): Promise<number> {
   let port = desiredPort;
   for (let i = 0; i < 20; i++) {
     try {
-      await app.listen({ port, host: '127.0.0.1' });
+      await app.listen({ port, host: '0.0.0.0' });
       return port;
     } catch (e: any) {
       if (e.code !== 'EADDRINUSE') throw e;

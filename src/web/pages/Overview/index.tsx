@@ -1,4 +1,6 @@
-import { Row, Col, Card, Spin, Segmented } from 'antd';
+import { useEffect, useState } from 'react';
+import { Row, Col, Card, Spin, Segmented, Popover, Space, Table } from 'antd';
+import { Link } from 'react-router-dom';
 import { ThunderboltOutlined, DollarOutlined, MessageOutlined, ApiOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useOverview } from '../../hooks/useOverview.js';
@@ -7,11 +9,13 @@ import KpiCard from '../../components/KpiCard.js';
 import BarList from '../../components/BarList.js';
 import EmptyState from '../../components/EmptyState.js';
 import PageHeader from '../../components/PageHeader.js';
+import TokenBreakdown from '../../components/TokenBreakdown.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
-import { echartsThemeName } from '../../theme/echarts.js';
+import { echartsThemeName, formatCompactNumber } from '../../theme/echarts.js';
 import { api } from '../../api/client.js';
-import type { CostResponse, OverviewResponse, RangeKey } from '../../../shared/types.js';
+import type { CostResponse, OverviewResponse, RangeKey, TrendGranularity } from '../../../shared/types.js';
+import { useFormatTokens } from '../../format.js';
 import ReactECharts from 'echarts-for-react';
 
 const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
@@ -24,9 +28,16 @@ const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
 
 export default function Overview() {
   const { range, setRange } = useStore();
-  const { data, isLoading } = useOverview(range);
   const { mode } = useTheme();
   const t = TOKENS[mode];
+
+  const allowHour = range === 'today' || range === 'week';
+  const defaultGran: TrendGranularity = range === 'today' ? 'hour' : 'day';
+  const [granOverride, setGranOverride] = useState<TrendGranularity | null>(null);
+  const granularity: TrendGranularity = allowHour ? (granOverride ?? defaultGran) : 'day';
+  useEffect(() => { setGranOverride(null); }, [range]);
+
+  const { data, isLoading } = useOverview(range, granularity);
 
   const anomalies = useQuery<CostResponse>({
     queryKey: ['cost', 'day', 'month'],
@@ -56,34 +67,71 @@ export default function Overview() {
         />
       )}
       {data && data.totals.messageCount > 0 && (
-        <OverviewBody data={data} t={t} mode={mode} anomalyCount={anomalyCount} />
+        <OverviewBody
+          data={data} t={t} mode={mode} anomalyCount={anomalyCount}
+          range={range}
+          granularity={granularity} allowHour={allowHour}
+          onGranularityChange={(g) => setGranOverride(g)}
+        />
       )}
     </>
   );
 }
 
+const RANGE_LABEL: Record<RangeKey, string> = {
+  today: 'vs 昨日',
+  week:  'vs 上周',
+  month: 'vs 上 30 天',
+  ytd:   'vs 上一周期',
+  all:   '',
+};
+
+function delta(curr: number, prev: number): number | null {
+  if (prev <= 0) return curr > 0 ? Infinity : null;
+  return (curr - prev) / prev;
+}
+
 function OverviewBody({
-  data, t, mode, anomalyCount,
+  data, t, mode, anomalyCount, range, granularity, allowHour, onGranularityChange,
 }: {
   data: OverviewResponse;
   t: typeof TOKENS['light'];
   mode: 'light' | 'dark';
   anomalyCount: number;
+  range: RangeKey;
+  granularity: TrendGranularity;
+  allowHour: boolean;
+  onGranularityChange: (g: TrendGranularity) => void;
 }) {
+  const fmtTokens = useFormatTokens();
+  const [trendMode, setTrendMode] = useState<'model' | 'type'>('model');
   const totalTokens = data.totals.inputTokens + data.totals.outputTokens + data.totals.cacheCreate + data.totals.cacheRead;
-  // dailyTrend.byModel values are per-model totals of (input+output+cache*) — summing them yields the day total.
-  const dayTotal = (d: OverviewResponse['dailyTrend'][number]) =>
+  const prev = data.previous;
+  const prevTotalTokens = prev
+    ? prev.inputTokens + prev.outputTokens + prev.cacheCreate + prev.cacheRead
+    : 0;
+  const deltaLabel = RANGE_LABEL[range] || '';
+  const tokenDelta   = prev ? delta(totalTokens, prevTotalTokens)        : null;
+  const costDelta    = prev ? delta(data.totals.costUsd, prev.costUsd)   : null;
+  const sessionDelta = prev ? delta(data.totals.sessionCount, prev.sessionCount) : null;
+  // dailyTrend.byModel values are per-model totals of (input+output+cache*) — summing them yields the bucket total.
+  const bucketTotal = (d: OverviewResponse['dailyTrend'][number]) =>
     Object.values(d.byModel).reduce((a, v) => a + v, 0);
-  const tokenSpark = data.dailyTrend.map(dayTotal);
+  const tokenSpark = data.dailyTrend.map(bucketTotal);
   const costSpark = data.dailyTrend.map(d => d.costUsd);
-  const last = data.dailyTrend[data.dailyTrend.length - 1];
-  const todayTokens = last ? dayTotal(last) : 0;
-  const todayCost = last ? last.costUsd : 0;
+  // Snapshot aggregates whatever buckets share the most-recent date,
+  // so it stays "今日总计" regardless of chart granularity.
+  const lastDate = data.dailyTrend.length > 0
+    ? data.dailyTrend[data.dailyTrend.length - 1].date.slice(0, 10)
+    : '';
+  const lastDayBuckets = data.dailyTrend.filter(d => d.date.startsWith(lastDate));
+  const todayTokens = lastDayBuckets.reduce((acc, d) => acc + bucketTotal(d), 0);
+  const todayCost = lastDayBuckets.reduce((acc, d) => acc + d.costUsd, 0);
   const topProject = data.byProject[0]?.displayName ?? '—';
 
   const trendModels = new Set<string>();
   data.dailyTrend.forEach(d => Object.keys(d.byModel).forEach(m => trendModels.add(m)));
-  const series = [...trendModels].map(model => ({
+  const seriesByModel = [...trendModels].map(model => ({
     name: model,
     type: 'line',
     stack: 'all',
@@ -91,25 +139,90 @@ function OverviewBody({
     smooth: false,
     data: data.dailyTrend.map(d => d.byModel[model] ?? 0),
   }));
+  const seriesByType = [
+    { name: 'Input',        key: 'inputTokens'  as const, color: t.chartPalette[0] },
+    { name: 'Output',       key: 'outputTokens' as const, color: t.chartPalette[1] },
+    { name: 'Cache create', key: 'cacheCreate'  as const, color: t.chartPalette[2] },
+    { name: 'Cache read',   key: 'cacheRead'    as const, color: t.chartPalette[3] },
+  ].map(s => ({
+    name: s.name,
+    type: 'line',
+    stack: 'all',
+    areaStyle: { opacity: 0.7 },
+    smooth: false,
+    itemStyle: { color: s.color },
+    lineStyle: { color: s.color },
+    data: data.dailyTrend.map(d => d[s.key] ?? 0),
+  }));
+  const RATE_SERIES = '缓存命中率';
+  const hitRateData = data.dailyTrend.map(d => {
+    const denom = d.inputTokens + d.cacheCreate + d.cacheRead;
+    return denom > 0 ? +(d.cacheRead / denom * 100).toFixed(2) : null;
+  });
+  const validRates = hitRateData.filter((v): v is number => v !== null);
+  // Auto-scale rate axis: floor min to nearest 5, max stays at 100.
+  // Falls back to 0–100 if no data so the axis still renders.
+  const rateMin = validRates.length > 0
+    ? Math.max(0, Math.floor((Math.min(...validRates) - 2) / 5) * 5)
+    : 0;
+  const hitRateSeries = {
+    name: RATE_SERIES,
+    type: 'line',
+    yAxisIndex: 1,
+    smooth: false,
+    symbol: 'circle',
+    symbolSize: 4,
+    z: 10,
+    connectNulls: true,
+    itemStyle: { color: t.warning },
+    lineStyle: { color: t.warning, width: 2 },
+    data: hitRateData,
+    tooltip: { valueFormatter: (v: unknown) => v == null ? '—' : `${Number(v).toFixed(1)}%` },
+  };
+  const series = [
+    ...(trendMode === 'type' ? seriesByType : seriesByModel),
+    hitRateSeries,
+  ];
 
   return (
     <>
       <Row gutter={14} style={{ marginBottom: 18 }}>
-        <Col span={6}><KpiCard
-          title="总 Token" value={totalTokens}
-          icon={<ThunderboltOutlined />}
-          sparkline={tokenSpark}
-        /></Col>
+        <Col span={6}>
+          <Popover
+            placement="bottomLeft"
+            mouseEnterDelay={0.15}
+            content={
+              <TokenBreakdown
+                totals={data.totals}
+                cacheHitRate={data.cacheHitRate}
+                fmtTokens={fmtTokens}
+              />
+            }
+          >
+            <div style={{ cursor: 'help' }}>
+              <KpiCard
+                title="总 Token" value={totalTokens}
+                icon={<ThunderboltOutlined />}
+                sparkline={tokenSpark}
+                formatter={fmtTokens}
+                delta={tokenDelta}
+                deltaLabel={deltaLabel}
+              />
+            </div>
+          </Popover>
+        </Col>
         <Col span={6}><KpiCard
           title="总成本" value={data.totals.costUsd} precision={2} suffix="$"
           icon={<DollarOutlined />}
           iconBg={mode === 'dark' ? '#3b2e10' : '#fef3c7'} iconColor="#d97706"
           sparkline={costSpark} sparkColor="#d97706"
+          delta={costDelta} deltaLabel={deltaLabel}
         /></Col>
         <Col span={6}><KpiCard
           title="会话数" value={data.totals.sessionCount}
           icon={<MessageOutlined />}
           iconBg={mode === 'dark' ? '#10321f' : '#dcfce7'} iconColor="#16a34a"
+          delta={sessionDelta} deltaLabel={deltaLabel}
         /></Col>
         <Col span={6}><KpiCard
           title="缓存命中率" value={data.cacheHitRate * 100} precision={1} suffix="%"
@@ -120,25 +233,97 @@ function OverviewBody({
 
       <Row gutter={14} style={{ marginBottom: 18 }}>
         <Col span={16}>
-          <Card title="Token 趋势 · 按模型堆叠" extra={<span style={{ fontSize: 11, color: t.textSecondary }}>每日</span>}>
+          <Card
+            title={trendMode === 'type' ? 'Token 趋势 · 按类型堆叠' : 'Token 趋势 · 按模型堆叠'}
+            extra={
+              <Space size={8}>
+                <Segmented
+                  size="small"
+                  options={[{ label: '模型', value: 'model' }, { label: '类型', value: 'type' }]}
+                  value={trendMode}
+                  onChange={(v) => setTrendMode(v as 'model' | 'type')}
+                />
+                {allowHour ? (
+                  <Segmented
+                    size="small"
+                    options={[{ label: '日', value: 'day' }, { label: '时', value: 'hour' }]}
+                    value={granularity}
+                    onChange={(v) => onGranularityChange(v as TrendGranularity)}
+                  />
+                ) : (
+                  <span style={{ fontSize: 11, color: t.textSecondary }}>每日</span>
+                )}
+              </Space>
+            }
+          >
             <ReactECharts
+              key={`trend-${trendMode}-${granularity}`}
               theme={echartsThemeName(mode)}
               style={{ height: 280 }}
               option={{
-                tooltip: { trigger: 'axis' },
+                animation: false,
+                tooltip: trendMode === 'type'
+                  ? {
+                      trigger: 'axis',
+                      axisPointer: { type: 'line' },
+                      formatter: (params: unknown) => {
+                        const arr = (Array.isArray(params) ? params : [params]) as Array<{
+                          axisValueLabel: string; marker: string; seriesName: string; value: number;
+                        }>;
+                        if (arr.length === 0) return '';
+                        const tokenRows = arr.filter(p => p.seriesName !== RATE_SERIES);
+                        const rateRow = arr.find(p => p.seriesName === RATE_SERIES);
+                        const head = `<div style="margin-bottom:4px">${arr[0].axisValueLabel}</div>`;
+                        const body = tokenRows.map(p =>
+                          `<div style="display:flex;justify-content:space-between;gap:16px">
+                            <span>${p.marker}${p.seriesName}</span>
+                            <strong>${fmtTokens(Number(p.value))}</strong>
+                          </div>`
+                        ).join('');
+                        const foot = rateRow
+                          ? `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed ${t.border};display:flex;justify-content:space-between;gap:16px">
+                              <span>${rateRow.marker}缓存命中率</span>
+                              <strong>${Number(rateRow.value).toFixed(1)}%</strong>
+                            </div>`
+                          : '';
+                        return head + body + foot;
+                      },
+                    }
+                  : {
+                      trigger: 'axis',
+                      axisPointer: { type: 'line' },
+                      valueFormatter: (v: unknown) => fmtTokens(Number(v)),
+                    },
                 legend: { top: 'bottom' },
-                grid: { left: 40, right: 20, top: 20, bottom: 60 },
-                xAxis: { type: 'category', data: data.dailyTrend.map(d => d.date) },
-                yAxis: { type: 'value', name: 'tokens' },
+                grid: { left: 50, right: 56, top: 20, bottom: 60 },
+                xAxis: {
+                  type: 'category',
+                  data: data.dailyTrend.map(d => d.date),
+                  axisLabel: granularity === 'hour'
+                    ? { formatter: (v: string) => v.length >= 16 ? v.slice(11, 16) : v }
+                    : undefined,
+                },
+                yAxis: [
+                  {
+                    type: 'value',
+                    axisLabel: { formatter: (v: number) => formatCompactNumber(v) },
+                  },
+                  {
+                    type: 'value',
+                    min: rateMin, max: 100,
+                    splitLine: { show: false },
+                    axisLabel: { formatter: '{value}%' },
+                  },
+                ],
                 series,
               }}
             />
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="今日速览" extra={<span style={{ fontSize: 11, color: t.textSecondary }}>{last?.date ?? ''}</span>}>
+          <Card title="今日速览" extra={<span style={{ fontSize: 11, color: t.textSecondary }}>{lastDate}</span>}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <GlanceLine label="今日 tokens" value={todayTokens.toLocaleString()} t={t} />
+              <GlanceLine label="今日 tokens" value={fmtTokens(todayTokens)} t={t} />
               <GlanceLine label="今日成本" value={`$${todayCost.toFixed(2)}`} t={t} />
               <GlanceLine label="最活跃项目" value={topProject} emphasize t={t} />
               <GlanceLine label="本月异常日" value={`${anomalyCount} 日`} danger={anomalyCount > 0} t={t} />
@@ -147,17 +332,65 @@ function OverviewBody({
         </Col>
       </Row>
 
-      <Row gutter={14}>
-        <Col span={12}>
+      <Row gutter={14} style={{ marginBottom: 18 }}>
+        <Col span={8}>
           <Card title="按项目 · Top 10"
                 extra={<span style={{ fontSize: 11, color: t.textSecondary }}>按 token</span>}>
-            <BarList items={data.byProject.map(p => ({ label: p.displayName, value: p.tokens }))} />
+            <BarList
+              items={data.byProject.map(p => ({ label: p.displayName, value: p.tokens }))}
+              formatter={fmtTokens}
+            />
           </Card>
         </Col>
-        <Col span={12}>
+        <Col span={8}>
           <Card title="按模型 · 用量分布"
                 extra={<span style={{ fontSize: 11, color: t.textSecondary }}>按 token</span>}>
-            <BarList items={data.byModel.map(m => ({ label: m.model, value: m.tokens }))} />
+            <BarList
+              items={data.byModel.map(m => ({ label: m.model, value: m.tokens }))}
+              formatter={fmtTokens}
+            />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card title="按工具 · Top 10"
+                extra={<span style={{ fontSize: 11, color: t.textSecondary }}>按调用次数</span>}>
+            <BarList
+              items={data.byTool.map(x => ({ label: x.tool, value: x.count }))}
+              formatter={(v) => v.toLocaleString()}
+              emptyText="当前周期没有工具调用"
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={14}>
+        <Col span={24}>
+          <Card title={`高成本会话 Top ${data.topSessions.length}`}
+                extra={<span style={{ fontSize: 11, color: t.textSecondary }}>当前周期 · 按 $ 排序</span>}>
+            <Table
+              size="small"
+              rowKey="sessionId"
+              dataSource={data.topSessions}
+              pagination={false}
+              locale={{ emptyText: '无会话数据' }}
+              columns={[
+                {
+                  title: '会话', dataIndex: 'sessionId',
+                  render: (sid: string) => <Link to={`/sessions/${sid}`}>{sid.slice(0, 8)}…</Link>,
+                },
+                { title: '项目', dataIndex: 'displayName', ellipsis: true },
+                { title: '开始', dataIndex: 'startedAt', width: 170, render: (v: number) => new Date(v).toLocaleString() },
+                { title: '消息数', dataIndex: 'messageCount', align: 'right', width: 80 },
+                {
+                  title: 'Token', dataIndex: 'tokens', align: 'right', width: 110,
+                  render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
+                },
+                {
+                  title: '成本 ($)', dataIndex: 'costUsd', align: 'right', width: 110,
+                  render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,
+                },
+              ]}
+            />
           </Card>
         </Col>
       </Row>

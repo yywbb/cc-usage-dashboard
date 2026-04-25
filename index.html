@@ -4,6 +4,41 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CC Usage Dashboard</title>
+    <style>
+      :root {
+        --cc-sb-track: transparent;
+        --cc-sb-thumb: rgba(100, 116, 139, 0.28);
+        --cc-sb-thumb-hover: rgba(100, 116, 139, 0.55);
+      }
+      html, body { margin: 0; padding: 0; }
+      body { min-height: 100vh; }
+      #root { min-height: 100vh; }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--cc-sb-thumb) var(--cc-sb-track);
+      }
+      *::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+        background: var(--cc-sb-track);
+      }
+      *::-webkit-scrollbar-track {
+        background: var(--cc-sb-track);
+      }
+      *::-webkit-scrollbar-thumb {
+        background: var(--cc-sb-thumb);
+        border-radius: 8px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+      }
+      *::-webkit-scrollbar-thumb:hover {
+        background: var(--cc-sb-thumb-hover);
+        background-clip: padding-box;
+      }
+      *::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

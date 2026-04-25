@@ -8,6 +8,7 @@ function themeFor(mode: Mode) {
   return {
     color: t.chartPalette,
     backgroundColor: 'transparent',
+    animation: false,
     textStyle: { color: t.textPrimary, fontFamily: 'inherit' },
     title: { textStyle: { color: t.textPrimary, fontSize: 14, fontWeight: 600 } },
     legend: {
@@ -49,3 +50,11 @@ export function registerEchartsThemes() {
 }
 
 export const echartsThemeName = (mode: Mode) => (mode === 'dark' ? 'ccDark' : 'ccLight');
+
+export function formatCompactNumber(v: number): string {
+  const n = Math.abs(v);
+  if (n >= 1e9) return (v / 1e9).toFixed(n >= 1e10 ? 0 : 1) + 'B';
+  if (n >= 1e6) return (v / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M';
+  if (n >= 1e3) return (v / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k';
+  return String(v);
+}

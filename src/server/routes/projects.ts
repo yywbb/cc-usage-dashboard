@@ -37,7 +37,7 @@ export function registerProjects(app: FastifyInstance, db: DatabaseType) {
     const { b64 } = req.params as { b64: string };
     const projectDir = decodeProjectDir(b64);
     const daily = db.prepare(
-      `SELECT date(m.timestamp/1000,'unixepoch') as date,
+      `SELECT date(m.timestamp/1000,'unixepoch','localtime') as date,
               SUM(m.input_tokens + m.output_tokens + m.cache_creation_tokens + m.cache_read_tokens) as tokens,
               SUM(m.cost_usd) as costUsd,
               COUNT(DISTINCT m.session_id) as sessionCount
@@ -53,6 +53,27 @@ export function registerProjects(app: FastifyInstance, db: DatabaseType) {
        FROM sessions WHERE project_dir = ?
        ORDER BY total_cost_usd DESC LIMIT 20`
     ).all(projectDir);
-    return { daily, topSessions };
+    const totalsRow = db.prepare(
+      `SELECT COALESCE(SUM(m.input_tokens),0) as inputTokens,
+              COALESCE(SUM(m.output_tokens),0) as outputTokens,
+              COALESCE(SUM(m.cache_creation_tokens),0) as cacheCreate,
+              COALESCE(SUM(m.cache_read_tokens),0) as cacheRead,
+              COALESCE(SUM(m.cost_usd),0) as costUsd,
+              COUNT(*) as messageCount,
+              COUNT(DISTINCT m.session_id) as sessionCount
+       FROM messages m
+       JOIN sessions s ON s.session_id = m.session_id
+       WHERE s.project_dir = ?`
+    ).get(projectDir) as {
+      inputTokens: number; outputTokens: number;
+      cacheCreate: number; cacheRead: number;
+      costUsd: number; messageCount: number; sessionCount: number;
+    };
+    const cacheDenom = totalsRow.inputTokens + totalsRow.cacheCreate + totalsRow.cacheRead;
+    const totals = {
+      ...totalsRow,
+      cacheHitRate: cacheDenom > 0 ? totalsRow.cacheRead / cacheDenom : 0,
+    };
+    return { daily, topSessions, totals };
   });
 }

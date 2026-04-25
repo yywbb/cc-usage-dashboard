@@ -16,7 +16,7 @@ npm link
 
 ```bash
 ccu scan          # 扫描 ~/.claude/projects/ 并索引
-ccu start         # 启动仪表盘（默认 localhost:5173，自动打开浏览器）
+ccu start         # 启动仪表盘（默认 localhost:47821，自动打开浏览器）
 ccu start --port 6000 --no-open
 ccu recompute-cost  # 按最新价格表重算所有消息成本
 ```

@@ -1,6 +1,7 @@
-import { Layout, Menu, Button, Space } from 'antd';
+import { Layout, Menu, Button } from 'antd';
 import {
   DashboardOutlined, FolderOutlined, MessageOutlined, DollarOutlined, ReloadOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -44,6 +45,7 @@ export default function App() {
     { key: '/projects', icon: <FolderOutlined />,    label: <Link to="/projects">项目</Link> },
     { key: '/sessions', icon: <MessageOutlined />,   label: <Link to="/sessions">会话</Link> },
     { key: '/cost',     icon: <DollarOutlined />,    label: <Link to="/cost">成本</Link> },
+    { key: '/settings', icon: <SettingOutlined />,   label: <Link to="/settings">设置</Link> },
   ];
   const selected = menu.find(m => loc.pathname.startsWith(m.key))?.key ?? '/overview';
 
@@ -71,20 +73,27 @@ export default function App() {
 
       <Layout>
         <Layout.Header style={{
-          background: t.cardBg, padding: `0 ${SPACING.pageX}px`, height: 64,
+          background: t.cardBg, padding: `0 ${SPACING.pageX}px`, height: 72,
           borderBottom: `1px solid ${t.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', gap: 24,
         }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: t.textPrimary, lineHeight: 1.2 }}>
+          <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
+            <div style={{
+              fontSize: 20, fontWeight: 600, color: t.textPrimary,
+              lineHeight: 1.2, letterSpacing: -0.2,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
               {page?.title ?? ''}
             </div>
             {page?.subtitle && (
-              <div style={{ fontSize: 12, color: t.textSecondary, marginTop: 2 }}>{page.subtitle}</div>
+              <div style={{ fontSize: 12, lineHeight: 1.4, color: t.textSecondary, marginTop: 4 }}>{page.subtitle}</div>
             )}
           </div>
-          <Space size={8}>
-            {page?.extra}
+          {page?.extra && (
+            <div style={{ display: 'flex', alignItems: 'center' }}>{page.extra}</div>
+          )}
+          <div style={{ width: 1, height: 24, background: t.border }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <ThemeToggle />
             <Button
               type="primary"
@@ -92,7 +101,7 @@ export default function App() {
               loading={scan.isPending}
               onClick={() => scan.mutate()}
             >刷新数据</Button>
-          </Space>
+          </div>
         </Layout.Header>
         <Layout.Content style={{ padding: `${SPACING.pageY}px ${SPACING.pageX}px`, background: t.pageBg }}>
           <AppRoutes />

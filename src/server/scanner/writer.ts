@@ -1,6 +1,6 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { ParsedMessage } from '../../shared/types.js';
-import { computeCostUsd } from '../pricing.js';
+import { computeCostUsdWith, loadPriceTable } from '../pricing.js';
 
 export function upsertProject(
   db: DatabaseType,
@@ -25,6 +25,7 @@ export function insertMessages(
 ): number {
   if (msgs.length === 0) return 0;
   ensureSession(db, sessionId, projectDir);
+  const priceTable = loadPriceTable(db);
   const stmt = db.prepare(
     `INSERT OR IGNORE INTO messages
        (message_id, session_id, parent_uuid, role, model, timestamp,
@@ -36,7 +37,7 @@ export function insertMessages(
     let inserted = 0;
     for (const m of rows) {
       const cost = m.model
-        ? computeCostUsd(m.model, {
+        ? computeCostUsdWith(priceTable, m.model, {
             inputTokens: m.inputTokens,
             outputTokens: m.outputTokens,
             cacheCreationTokens: m.cacheCreationTokens,

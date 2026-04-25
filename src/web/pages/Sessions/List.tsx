@@ -8,6 +8,7 @@ import PageHeader from '../../components/PageHeader.js';
 import KpiCard from '../../components/KpiCard.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
+import { useFormatTokens } from '../../format.js';
 
 const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
   { label: '今天', value: 'today' }, { label: '本周', value: 'week' },
@@ -46,10 +47,11 @@ function hashColor(name: string): string {
 export default function SessionsList() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const fmtTokens = useFormatTokens();
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [projectDirs, setProjectDirs] = useState<string[]>([]);
   const [range, setRange] = useState<RangeKey>('all');
-  const pageSize = 50;
 
   const projects = useQuery({
     queryKey: ['projects'],
@@ -109,7 +111,18 @@ export default function SessionsList() {
         loading={isLoading}
         rowKey="sessionId"
         dataSource={data?.items ?? []}
-        pagination={{ current: page, pageSize, total: data?.total ?? 0, onChange: setPage }}
+        pagination={{
+          current: page,
+          pageSize,
+          total: data?.total ?? 0,
+          pageSizeOptions: [10, 15, 20, 50, 100],
+          showSizeChanger: true,
+          showTotal: (total) => `共 ${total} 条`,
+          onChange: (p, ps) => {
+            setPage(p);
+            if (ps !== pageSize) setPageSize(ps);
+          },
+        }}
         columns={[
           {
             title: '会话', dataIndex: 'sessionId',
@@ -126,7 +139,7 @@ export default function SessionsList() {
           { title: '消息数', dataIndex: 'messageCount', align: 'right', width: 80 },
           {
             title: 'Token', dataIndex: 'totalTokens', align: 'right', width: 110,
-            render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toLocaleString()}</span>,
+            render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
           },
           {
             title: '成本 ($)', dataIndex: 'totalCostUsd', align: 'right', width: 110,

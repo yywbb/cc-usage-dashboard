@@ -13,6 +13,9 @@ export default function KpiCard({
   iconColor,
   sparkline,
   sparkColor,
+  formatter,
+  delta,
+  deltaLabel,
 }: {
   title: string;
   value: number;
@@ -23,13 +26,19 @@ export default function KpiCard({
   iconColor?: string;
   sparkline?: number[];
   sparkColor?: string;
+  formatter?: (v: number) => string;
+  /** Fractional change vs previous period, e.g. 0.123 = +12.3%. */
+  delta?: number | null;
+  deltaLabel?: string;
 }) {
   const { mode } = useTheme();
   const t = TOKENS[mode];
-  const formatted = value.toLocaleString(undefined, {
-    minimumFractionDigits: precision,
-    maximumFractionDigits: precision,
-  });
+  const formatted = formatter
+    ? formatter(value)
+    : value.toLocaleString(undefined, {
+        minimumFractionDigits: precision,
+        maximumFractionDigits: precision,
+      });
 
   return (
     <Card styles={{ body: { padding: 18, position: 'relative', overflow: 'hidden' } }}>
@@ -54,6 +63,20 @@ export default function KpiCard({
       }}>
         {formatted}{suffix && <span style={{ fontSize: 16, color: t.textMuted, marginLeft: 2 }}>{suffix}</span>}
       </div>
+
+      {delta !== undefined && delta !== null && (
+        <div style={{ marginTop: 6, fontSize: 11, fontVariantNumeric: 'tabular-nums', display: 'flex', gap: 4, alignItems: 'baseline' }}>
+          <span style={{
+            color: !Number.isFinite(delta) || delta === 0 ? t.textMuted : (delta > 0 ? t.success : t.danger),
+            fontWeight: 600,
+          }}>
+            {!Number.isFinite(delta)
+              ? '—'
+              : `${delta > 0 ? '↑' : delta < 0 ? '↓' : ''} ${Math.abs(delta * 100).toFixed(1)}%`}
+          </span>
+          {deltaLabel && <span style={{ color: t.textMuted }}>{deltaLabel}</span>}
+        </div>
+      )}
 
       {sparkline && sparkline.length > 1 && (
         <Sparkline data={sparkline} color={sparkColor ?? t.primary} />

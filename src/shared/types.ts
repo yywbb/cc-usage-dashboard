@@ -33,8 +33,36 @@ export interface OverviewResponse {
   };
   byModel: Array<{ model: string; tokens: number; costUsd: number; share: number }>;
   byProject: Array<{ projectDir: string; displayName: string; tokens: number; costUsd: number; share: number }>;
-  dailyTrend: Array<{ date: string; inputTokens: number; outputTokens: number; costUsd: number; byModel: Record<string, number> }>;
+  byTool: Array<{ tool: string; count: number }>;
+  topSessions: Array<{
+    sessionId: string;
+    projectDir: string;
+    displayName: string;
+    costUsd: number;
+    tokens: number;
+    startedAt: number;
+    messageCount: number;
+  }>;
+  dailyTrend: Array<{
+    date: string;
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreate: number;
+    cacheRead: number;
+    costUsd: number;
+    byModel: Record<string, number>;
+  }>;
   cacheHitRate: number;
+  previous: null | {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreate: number;
+    cacheRead: number;
+    costUsd: number;
+    messageCount: number;
+    sessionCount: number;
+    cacheHitRate: number;
+  };
 }
 
 export interface ProjectRow {
@@ -89,6 +117,7 @@ export interface CostResponse {
 }
 
 export type RangeKey = 'today' | 'week' | 'month' | 'ytd' | 'all';
+export type TrendGranularity = 'day' | 'hour';
 
 export interface SessionsListStats {
   count: number;

@@ -7,9 +7,9 @@ export function registerCost(app: FastifyInstance, db: DatabaseType) {
     const q = req.query as { granularity?: 'day' | 'week' | 'month'; range?: string };
     const granularity = q.granularity ?? 'day';
     const bucketExpr = {
-      day:   `date(m.timestamp/1000,'unixepoch')`,
-      week:  `strftime('%Y-W%W', m.timestamp/1000,'unixepoch')`,
-      month: `strftime('%Y-%m',  m.timestamp/1000,'unixepoch')`,
+      day:   `date(m.timestamp/1000,'unixepoch','localtime')`,
+      week:  `strftime('%Y-W%W', m.timestamp/1000,'unixepoch','localtime')`,
+      month: `strftime('%Y-%m',  m.timestamp/1000,'unixepoch','localtime')`,
     }[granularity];
 
     const rows = db.prepare(

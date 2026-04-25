@@ -19,6 +19,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = mode;
     document.body.style.background = TOKENS[mode].pageBg;
     document.body.style.color = TOKENS[mode].textPrimary;
+
+    const root = document.documentElement;
+    if (mode === 'dark') {
+      root.style.setProperty('--cc-sb-track', 'transparent');
+      root.style.setProperty('--cc-sb-thumb', 'rgba(148,163,184,0.25)');
+      root.style.setProperty('--cc-sb-thumb-hover', 'rgba(148,163,184,0.45)');
+    } else {
+      root.style.setProperty('--cc-sb-track', 'transparent');
+      root.style.setProperty('--cc-sb-thumb', 'rgba(100,116,139,0.28)');
+      root.style.setProperty('--cc-sb-thumb-hover', 'rgba(100,116,139,0.55)');
+    }
   }, [mode]);
 
   const toggle = useCallback(() => setMode(m => (m === 'light' ? 'dark' : 'light')), []);

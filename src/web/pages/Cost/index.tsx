@@ -10,12 +10,14 @@ import KpiCard from '../../components/KpiCard.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { echartsThemeName } from '../../theme/echarts.js';
+import { useFormatTokens } from '../../format.js';
 
 type Granularity = 'day' | 'week' | 'month';
 
 export default function Cost() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const fmtTokens = useFormatTokens();
   const [gran, setGran] = useState<Granularity>('day');
   const [q, setQ] = useState('');
 
@@ -35,13 +37,35 @@ export default function Cost() {
   );
   const peakCost = peakBucket?.costUsd ?? 0;
 
-  const projects = [...new Set(buckets.flatMap(b => b.byProject.map(p => p.projectDir)))];
-  const series = projects.map(pd => ({
-    name: pd.split(/[/\\]/).pop() ?? pd,
+  const TOP_N = 7;
+  const projectTotals = new Map<string, number>();
+  for (const b of buckets) {
+    for (const p of b.byProject) {
+      projectTotals.set(p.projectDir, (projectTotals.get(p.projectDir) ?? 0) + p.costUsd);
+    }
+  }
+  const ranked = [...projectTotals.entries()].sort((a, b) => b[1] - a[1]);
+  const topProjects = ranked.slice(0, TOP_N).map(([pd]) => pd);
+  const otherProjects = new Set(ranked.slice(TOP_N).map(([pd]) => pd));
+
+  const series: Array<Record<string, unknown>> = topProjects.map(pd => ({
+    name: shortProjectName(pd),
     type: 'bar',
     stack: 'all',
     data: buckets.map(b => b.byProject.find(p => p.projectDir === pd)?.costUsd ?? 0),
   }));
+  if (otherProjects.size > 0) {
+    series.push({
+      name: `其他(${otherProjects.size})`,
+      type: 'bar',
+      stack: 'all',
+      itemStyle: { color: mode === 'dark' ? '#475569' : '#cbd5e1' },
+      data: buckets.map(b =>
+        b.byProject.filter(p => otherProjects.has(p.projectDir))
+                   .reduce((acc, p) => acc + p.costUsd, 0)
+      ),
+    });
+  }
 
   const markPointData = anomalies.map(a => ({
     name: 'anomaly',
@@ -51,7 +75,7 @@ export default function Cost() {
     itemStyle: { color: t.danger },
   }));
   if (series.length > 0) {
-    (series[0] as Record<string, unknown>).markPoint = {
+    series[0].markPoint = {
       symbol: 'pin', symbolSize: 38, label: { fontSize: 10, color: '#fff' },
       data: markPointData,
     };
@@ -93,9 +117,38 @@ export default function Cost() {
               theme={echartsThemeName(mode)}
               style={{ height: 380 }}
               option={{
-                tooltip: { trigger: 'axis' },
-                legend: { top: 'bottom' },
-                grid: { left: 50, right: 20, top: 30, bottom: 60 },
+                animation: false,
+                tooltip: {
+                  trigger: 'axis',
+                  axisPointer: { type: 'line' },
+                  formatter: (params: unknown) => {
+                    const arr = (Array.isArray(params) ? params : [params]) as Array<{
+                      axisValueLabel: string; marker: string; seriesName: string; value: number;
+                    }>;
+                    if (arr.length === 0) return '';
+                    const rows = arr
+                      .filter(p => Number(p.value) > 0)
+                      .sort((a, b) => Number(b.value) - Number(a.value));
+                    if (rows.length === 0) return '';
+                    const head = `<div style="margin-bottom:4px">${arr[0].axisValueLabel}</div>`;
+                    const body = rows.map(p =>
+                      `<div style="display:flex;justify-content:space-between;gap:16px">
+                        <span>${p.marker}${p.seriesName}</span>
+                        <strong>$${Number(p.value).toFixed(2)}</strong>
+                      </div>`
+                    ).join('');
+                    return head + body;
+                  },
+                },
+                legend: {
+                  type: 'scroll',
+                  bottom: 0,
+                  left: 'center',
+                  itemWidth: 10,
+                  itemHeight: 10,
+                  textStyle: { fontSize: 11 },
+                },
+                grid: { left: 50, right: 20, top: 20, bottom: 50 },
                 xAxis: {
                   type: 'category',
                   data: buckets.map(b => b.bucketKey),
@@ -149,7 +202,12 @@ export default function Cost() {
           size="small"
           rowKey="bucketKey"
           dataSource={filteredBuckets}
-          pagination={{ pageSize: 30 }}
+          pagination={{
+            defaultPageSize: 15,
+            pageSizeOptions: [10, 15, 20, 50, 100],
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+          }}
           rowClassName={(r) => anomalyKeys.has(r.bucketKey) ? 'cc-anomaly-row' : ''}
           columns={[
             { title: '周期', dataIndex: 'bucketKey' },
@@ -159,7 +217,7 @@ export default function Cost() {
             },
             {
               title: 'tokens', dataIndex: 'tokens', align: 'right', width: 140,
-              render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toLocaleString()}</span>,
+              render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
             },
           ]}
         />
@@ -174,6 +232,12 @@ export default function Cost() {
       `}</style>
     </>
   );
+}
+
+function shortProjectName(projectDir: string): string {
+  const tail = projectDir.split(/[/\\]/).pop() ?? projectDir;
+  const seg = tail.split('--').filter(Boolean).pop() ?? tail;
+  return seg.length > 22 ? seg.slice(0, 21) + '…' : seg;
 }
 
 function downloadCsv(data: CostResponse | undefined) {
