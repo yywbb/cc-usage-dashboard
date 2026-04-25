@@ -11,9 +11,18 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
   // projectDir query string accepts a comma-separated list of RAW project_dir values
   // (as returned by /api/projects), not base64-encoded. project_dir strings come from
   // folder names and never contain commas in practice.
+  const SORT_COLUMN: Record<string, string> = {
+    startedAt: 's.started_at',
+    duration: '(s.ended_at - s.started_at)',
+    messageCount: 's.message_count',
+    totalTokens: '(s.total_input + s.total_output + s.total_cache_create + s.total_cache_read)',
+    totalCostUsd: 's.total_cost_usd',
+  };
+
   app.get('/api/sessions', async (req) => {
     const q = req.query as {
       projectDir?: string; from?: string; to?: string; limit?: string; offset?: string;
+      sortBy?: string; sortOrder?: string;
     };
     const projectDirs = q.projectDir
       ? q.projectDir.split(',').map(s => s.trim()).filter(Boolean)
@@ -22,6 +31,8 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
     const to = q.to ? new Date(q.to).getTime() : Date.now();
     const limit = Number(q.limit ?? 50);
     const offset = Number(q.offset ?? 0);
+    const sortBy = q.sortBy && SORT_COLUMN[q.sortBy] ? q.sortBy : 'startedAt';
+    const sortOrder = q.sortOrder === 'asc' ? 'ASC' : 'DESC';
 
     const projPlaceholders = projectDirs.map((_, i) => `@p${i}`).join(',');
     const whereProj = projectDirs.length ? `AND s.project_dir IN (${projPlaceholders})` : '';
@@ -42,7 +53,8 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
               s.total_cost_usd as totalCostUsd
        FROM sessions s
        WHERE s.started_at BETWEEN @from AND @to ${whereProj}
-       ORDER BY s.started_at DESC LIMIT @limit OFFSET @offset`
+       ORDER BY ${SORT_COLUMN[sortBy]} ${sortOrder}, s.session_id ${sortOrder}
+       LIMIT @limit OFFSET @offset`
     ).all({ from, to, limit, offset, ...projParams }) as Array<{
       sessionId: string; projectDir: string; startedAt: number; endedAt: number;
       messageCount: number; totalTokens: number; totalCostUsd: number;

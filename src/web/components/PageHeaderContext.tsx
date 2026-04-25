@@ -1,22 +1,15 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
-
-export interface PageHeaderState {
-  title: string;
-  subtitle?: string;
-  extra?: ReactNode;
-}
+import { createContext, useContext, useState, useMemo, type ReactNode } from 'react';
 
 interface Ctx {
-  state: PageHeaderState | null;
-  set: (s: PageHeaderState | null) => void;
+  container: HTMLElement | null;
+  setContainer: (el: HTMLElement | null) => void;
 }
 
 const PageHeaderCtx = createContext<Ctx | null>(null);
 
 export function PageHeaderProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<PageHeaderState | null>(null);
-  const set = useCallback((s: PageHeaderState | null) => setState(s), []);
-  const value = useMemo(() => ({ state, set }), [state, set]);
+  const [container, setContainer] = useState<HTMLElement | null>(null);
+  const value = useMemo(() => ({ container, setContainer }), [container]);
   return <PageHeaderCtx.Provider value={value}>{children}</PageHeaderCtx.Provider>;
 }
 

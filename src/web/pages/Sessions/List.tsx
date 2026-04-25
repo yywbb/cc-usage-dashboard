@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Table, Tag, Row, Col, Select, Segmented } from 'antd';
+import type { TableProps } from 'antd';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import type { ProjectRow, RangeKey, SessionsListResponse } from '../../../shared/types.js';
@@ -38,6 +39,8 @@ function durationTag(ms: number): { color: string; text: string } {
   return { color: 'orange', text: `${hr} 时` };
 }
 
+function b64(p: string) { return btoa(p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+
 function hashColor(name: string): string {
   const palette = ['magenta', 'red', 'volcano', 'orange', 'gold', 'lime', 'green', 'cyan', 'blue', 'geekblue', 'purple'];
   let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0;
@@ -52,6 +55,9 @@ export default function SessionsList() {
   const [pageSize, setPageSize] = useState(15);
   const [projectDirs, setProjectDirs] = useState<string[]>([]);
   const [range, setRange] = useState<RangeKey>('all');
+  type SortBy = 'startedAt' | 'duration' | 'messageCount' | 'totalTokens' | 'totalCostUsd';
+  const [sortBy, setSortBy] = useState<SortBy>('startedAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const projects = useQuery({
     queryKey: ['projects'],
@@ -63,12 +69,14 @@ export default function SessionsList() {
     const params = new URLSearchParams({
       limit: String(pageSize),
       offset: String((page - 1) * pageSize),
+      sortBy,
+      sortOrder,
     });
     if (from) params.set('from', from);
     if (to) params.set('to', to);
     if (projectDirs.length) params.set('projectDir', projectDirs.join(','));
     return `/api/sessions?${params.toString()}`;
-  }, [page, pageSize, projectDirs, range]);
+  }, [page, pageSize, projectDirs, range, sortBy, sortOrder]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sessions', url],
@@ -76,6 +84,11 @@ export default function SessionsList() {
   });
 
   const stats = data?.stats ?? { count: 0, totalCostUsd: 0, avgCostUsd: 0, medianDurationMs: 0 };
+  const projectByDir = useMemo(() => {
+    const m = new Map<string, ProjectRow>();
+    for (const p of projects.data ?? []) m.set(p.projectDir, p);
+    return m;
+  }, [projects.data]);
 
   return (
     <>
@@ -106,10 +119,11 @@ export default function SessionsList() {
         />
       </div>
 
-      <Table
+      <Table<SessionsListResponse['items'][number]>
         size="small"
         loading={isLoading}
         rowKey="sessionId"
+        tableLayout="fixed"
         dataSource={data?.items ?? []}
         pagination={{
           current: page,
@@ -118,35 +132,72 @@ export default function SessionsList() {
           pageSizeOptions: [10, 15, 20, 50, 100],
           showSizeChanger: true,
           showTotal: (total) => `共 ${total} 条`,
-          onChange: (p, ps) => {
-            setPage(p);
-            if (ps !== pageSize) setPageSize(ps);
-          },
         }}
+        onChange={((pag, _filters, sorter) => {
+          if (pag.current && pag.current !== page) setPage(pag.current);
+          if (pag.pageSize && pag.pageSize !== pageSize) setPageSize(pag.pageSize);
+          const s = Array.isArray(sorter) ? sorter[0] : sorter;
+          const field = (s?.columnKey ?? s?.field) as SortBy | undefined;
+          if (s?.order && field) {
+            const order = s.order === 'ascend' ? 'asc' : 'desc';
+            if (field !== sortBy || order !== sortOrder) {
+              setSortBy(field);
+              setSortOrder(order);
+              setPage(1);
+            }
+          } else if (!s?.order && (sortBy !== 'startedAt' || sortOrder !== 'desc')) {
+            setSortBy('startedAt');
+            setSortOrder('desc');
+            setPage(1);
+          }
+        }) as TableProps<SessionsListResponse['items'][number]>['onChange']}
         columns={[
           {
-            title: '会话', dataIndex: 'sessionId',
+            title: '会话', dataIndex: 'sessionId', width: 120,
             render: (sid: string) => <Link to={`/sessions/${sid}`}>{sid.slice(0, 8)}…</Link>,
           },
-          { title: '开始时间', dataIndex: 'startedAt', width: 170, render: (v) => new Date(v).toLocaleString() },
           {
-            title: '时长', width: 90,
+            title: '项目', dataIndex: 'projectDir', width: 200,
+            render: (dir: string) => {
+              const p = projectByDir.get(dir);
+              const name = p?.displayName ?? dir.split(/[\\/]/).pop() ?? dir;
+              return (
+                <Link to={`/projects/${b64(dir)}`} title={dir}
+                      style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                  {name}
+                </Link>
+              );
+            },
+          },
+          {
+            title: '开始时间', dataIndex: 'startedAt', key: 'startedAt', width: 170,
+            sorter: true, sortOrder: sortBy === 'startedAt' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+            render: (v) => new Date(v).toLocaleString(),
+          },
+          {
+            title: '时长', key: 'duration', width: 95,
+            sorter: true, sortOrder: sortBy === 'duration' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
             render: (_: unknown, r: { startedAt: number; endedAt: number }) => {
               const { color, text } = durationTag(r.endedAt - r.startedAt);
               return <Tag color={color}>{text}</Tag>;
             },
           },
-          { title: '消息数', dataIndex: 'messageCount', align: 'right', width: 80 },
           {
-            title: 'Token', dataIndex: 'totalTokens', align: 'right', width: 110,
+            title: '消息数', dataIndex: 'messageCount', key: 'messageCount', align: 'right', width: 95,
+            sorter: true, sortOrder: sortBy === 'messageCount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+          },
+          {
+            title: 'Token', dataIndex: 'totalTokens', key: 'totalTokens', align: 'right', width: 115,
+            sorter: true, sortOrder: sortBy === 'totalTokens' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
             render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
           },
           {
-            title: '成本 ($)', dataIndex: 'totalCostUsd', align: 'right', width: 110,
+            title: '成本 ($)', dataIndex: 'totalCostUsd', key: 'totalCostUsd', align: 'right', width: 115,
+            sorter: true, sortOrder: sortBy === 'totalCostUsd' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
             render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,
           },
           {
-            title: 'Top 工具', dataIndex: 'topTools',
+            title: 'Top 工具', dataIndex: 'topTools', width: 240,
             render: (tools: string[]) => {
               const shown = tools.slice(0, 3);
               const rest = tools.length - shown.length;

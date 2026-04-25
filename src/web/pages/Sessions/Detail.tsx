@@ -94,7 +94,7 @@ export default function SessionDetail() {
                 },
                 legend: { top: 'bottom' },
                 grid: { left: 50, right: 20, top: 20, bottom: 40 },
-                xAxis: { type: 'category', data: data.messages.map((_, i) => i + 1), name: '第 N 条消息' },
+                xAxis: { type: 'category', data: data.messages.map((_, i) => i + 1) },
                 yAxis: {
                   type: 'value',
                   axisLabel: { formatter: (v: number) => formatCompactNumber(v) },

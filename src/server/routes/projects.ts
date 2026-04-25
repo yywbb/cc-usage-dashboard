@@ -18,7 +18,8 @@ export function registerProjects(app: FastifyInstance, db: DatabaseType) {
               COUNT(s.session_id) as session_count,
               COALESCE(SUM(s.total_input + s.total_output + s.total_cache_create + s.total_cache_read),0) as total_tokens,
               COALESCE(SUM(s.total_cost_usd),0) as total_cost_usd,
-              p.first_seen_at as firstSeenAt, p.last_seen_at as lastSeenAt
+              COALESCE(MIN(s.started_at), p.first_seen_at) as firstSeenAt,
+              COALESCE(MAX(s.ended_at),   p.last_seen_at)  as lastSeenAt
        FROM projects p
        LEFT JOIN sessions s ON s.project_dir = p.project_dir
        GROUP BY p.project_dir

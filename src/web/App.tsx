@@ -28,7 +28,7 @@ export default function App() {
   const qc = useQueryClient();
   const { mode } = useTheme();
   const t = TOKENS[mode];
-  const { state: page } = usePageHeader();
+  const { setContainer } = usePageHeader();
 
   const scan = useMutation({
     mutationFn: () => api.post('/api/scan'),
@@ -77,21 +77,7 @@ export default function App() {
           borderBottom: `1px solid ${t.border}`,
           display: 'flex', alignItems: 'center', gap: 24,
         }}>
-          <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
-            <div style={{
-              fontSize: 20, fontWeight: 600, color: t.textPrimary,
-              lineHeight: 1.2, letterSpacing: -0.2,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {page?.title ?? ''}
-            </div>
-            {page?.subtitle && (
-              <div style={{ fontSize: 12, lineHeight: 1.4, color: t.textSecondary, marginTop: 4 }}>{page.subtitle}</div>
-            )}
-          </div>
-          {page?.extra && (
-            <div style={{ display: 'flex', alignItems: 'center' }}>{page.extra}</div>
-          )}
+          <div ref={setContainer} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 24 }} />
           <div style={{ width: 1, height: 24, background: t.border }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <ThemeToggle />

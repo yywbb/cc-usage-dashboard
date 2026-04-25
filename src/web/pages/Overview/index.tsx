@@ -114,6 +114,7 @@ function OverviewBody({
   const tokenDelta   = prev ? delta(totalTokens, prevTotalTokens)        : null;
   const costDelta    = prev ? delta(data.totals.costUsd, prev.costUsd)   : null;
   const sessionDelta = prev ? delta(data.totals.sessionCount, prev.sessionCount) : null;
+  const hitRateDelta = prev ? delta(data.cacheHitRate, prev.cacheHitRate) : null;
   // dailyTrend.byModel values are per-model totals of (input+output+cache*) — summing them yields the bucket total.
   const bucketTotal = (d: OverviewResponse['dailyTrend'][number]) =>
     Object.values(d.byModel).reduce((a, v) => a + v, 0);
@@ -228,6 +229,7 @@ function OverviewBody({
           title="缓存命中率" value={data.cacheHitRate * 100} precision={1} suffix="%"
           icon={<ApiOutlined />}
           iconBg={mode === 'dark' ? '#3a1622' : '#ffe4e6'} iconColor="#e11d48"
+          delta={hitRateDelta} deltaLabel={deltaLabel}
         /></Col>
       </Row>
 
