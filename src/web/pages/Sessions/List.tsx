@@ -54,6 +54,7 @@ export default function SessionsList() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [projectDirs, setProjectDirs] = useState<string[]>([]);
+  const [providerSlugs, setProviderSlugs] = useState<string[]>([]);
   const [range, setRange] = useState<RangeKey>('all');
   type SortBy = 'startedAt' | 'duration' | 'messageCount' | 'totalTokens' | 'totalCostUsd';
   const [sortBy, setSortBy] = useState<SortBy>('startedAt');
@@ -62,6 +63,11 @@ export default function SessionsList() {
   const projects = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.get<ProjectRow[]>('/api/projects?sortBy=cost'),
+  });
+
+  const providers = useQuery({
+    queryKey: ['providers'],
+    queryFn: () => api.get<Array<{ slug: string; displayName: string }>>('/api/providers'),
   });
 
   const url = useMemo(() => {
@@ -75,8 +81,9 @@ export default function SessionsList() {
     if (from) params.set('from', from);
     if (to) params.set('to', to);
     if (projectDirs.length) params.set('projectDir', projectDirs.join(','));
+    if (providerSlugs.length) params.set('providers', providerSlugs.join(','));
     return `/api/sessions?${params.toString()}`;
-  }, [page, pageSize, projectDirs, range, sortBy, sortOrder]);
+  }, [page, pageSize, projectDirs, providerSlugs, range, sortBy, sortOrder]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sessions', url],
@@ -104,7 +111,7 @@ export default function SessionsList() {
         <Col span={6}><KpiCard title="中位时长" value={Math.round(stats.medianDurationMs / 60000)} suffix=" 分" /></Col>
       </Row>
 
-      <div style={{ marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div style={{ marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: t.textSecondary }}>项目</span>
         <Select<string[]>
           mode="multiple"
@@ -115,6 +122,18 @@ export default function SessionsList() {
           onChange={(v) => { setProjectDirs(v); setPage(1); }}
           options={(projects.data ?? []).map(p => ({
             label: p.displayName, value: p.projectDir,
+          }))}
+        />
+        <span style={{ fontSize: 12, color: t.textSecondary }}>供应商</span>
+        <Select<string[]>
+          mode="multiple"
+          allowClear
+          style={{ minWidth: 200 }}
+          placeholder="全部供应商"
+          value={providerSlugs}
+          onChange={(v) => { setProviderSlugs(v); setPage(1); }}
+          options={(providers.data ?? []).map(p => ({
+            label: p.displayName, value: p.slug,
           }))}
         />
       </div>
