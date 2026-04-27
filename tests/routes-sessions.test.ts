@@ -74,4 +74,30 @@ describe('/api/sessions', () => {
       expect(missRes.json().total).toBe(0);
     } finally { await cleanup(); }
   });
+
+  it('filters sessions to those with messages from a given provider', async () => {
+    const { app, cleanup } = await seeded();
+    try {
+      // Move claude-sonnet-4-6 to a fresh provider 'deepseek'
+      const dsRes = await app.inject({
+        method: 'POST', url: '/api/providers',
+        payload: { slug: 'deepseek', displayName: 'DeepSeek' },
+        headers: { 'content-type': 'application/json' },
+      });
+      const dsId = dsRes.json().id;
+      await app.inject({
+        method: 'PATCH', url: '/api/models/claude-sonnet-4-6',
+        payload: { providerId: dsId },
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const all = await app.inject({ method: 'GET', url: '/api/sessions' });
+      const ds  = await app.inject({ method: 'GET', url: '/api/sessions?providers=deepseek' });
+      const an  = await app.inject({ method: 'GET', url: '/api/sessions?providers=anthropic' });
+      expect(ds.json().total).toBeGreaterThan(0);
+      // The seeded fixture only uses claude-sonnet-4-6, so anthropic filter now finds 0
+      expect(an.json().total).toBe(0);
+      expect(ds.json().total).toBe(all.json().total);
+    } finally { await cleanup(); }
+  });
 });

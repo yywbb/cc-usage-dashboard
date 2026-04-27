@@ -21,7 +21,8 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
 
   app.get('/api/sessions', async (req) => {
     const q = req.query as {
-      projectDir?: string; from?: string; to?: string; limit?: string; offset?: string;
+      projectDir?: string; providers?: string;
+      from?: string; to?: string; limit?: string; offset?: string;
       sortBy?: string; sortOrder?: string;
     };
     const projectDirs = q.projectDir
@@ -39,10 +40,25 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
     const projParams: Record<string, string> = {};
     projectDirs.forEach((p, i) => (projParams[`p${i}`] = p));
 
+    const providerSlugs = q.providers
+      ? q.providers.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const provPlaceholders = providerSlugs.map((_, i) => `@pr${i}`).join(',');
+    const whereProv = providerSlugs.length
+      ? `AND s.session_id IN (
+           SELECT DISTINCT msg.session_id FROM messages msg
+           JOIN models m ON m.model_name = msg.model
+           JOIN providers pp ON pp.id = m.provider_id
+           WHERE pp.slug IN (${provPlaceholders})
+         )`
+      : '';
+    const provParams: Record<string, string> = {};
+    providerSlugs.forEach((s, i) => (provParams[`pr${i}`] = s));
+
     const totalRow = db.prepare(
       `SELECT COUNT(*) as n FROM sessions s
-       WHERE s.started_at BETWEEN @from AND @to ${whereProj}`
-    ).get({ from, to, ...projParams }) as { n: number };
+       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv}`
+    ).get({ from, to, ...projParams, ...provParams }) as { n: number };
     const total = totalRow.n;
 
     const rows = db.prepare(
@@ -52,10 +68,10 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
               s.total_input + s.total_output + s.total_cache_create + s.total_cache_read as totalTokens,
               s.total_cost_usd as totalCostUsd
        FROM sessions s
-       WHERE s.started_at BETWEEN @from AND @to ${whereProj}
+       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv}
        ORDER BY ${SORT_COLUMN[sortBy]} ${sortOrder}, s.session_id ${sortOrder}
        LIMIT @limit OFFSET @offset`
-    ).all({ from, to, limit, offset, ...projParams }) as Array<{
+    ).all({ from, to, limit, offset, ...projParams, ...provParams }) as Array<{
       sessionId: string; projectDir: string; startedAt: number; endedAt: number;
       messageCount: number; totalTokens: number; totalCostUsd: number;
     }>;
@@ -77,8 +93,8 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
     const statRows = db.prepare(
       `SELECT s.total_cost_usd as cost, s.ended_at - s.started_at as durMs
        FROM sessions s
-       WHERE s.started_at BETWEEN @from AND @to ${whereProj}`
-    ).all({ from, to, ...projParams }) as Array<{ cost: number; durMs: number }>;
+       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv}`
+    ).all({ from, to, ...projParams, ...provParams }) as Array<{ cost: number; durMs: number }>;
 
     const totalCostUsd = statRows.reduce((a, r) => a + (r.cost ?? 0), 0);
     const count = statRows.length;
