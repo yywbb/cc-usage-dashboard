@@ -133,6 +133,32 @@ export async function registerPricing(app: FastifyInstance, deps: PricingDeps) {
     });
   });
 
+  app.post('/api/models', async (req, reply) => {
+    const b = (req.body ?? {}) as { modelName?: string; providerId?: number };
+    if (!b.modelName || !MODEL_RE.test(b.modelName)) {
+      reply.code(400); return { error: 'invalid modelName' };
+    }
+    if (typeof b.providerId !== 'number') {
+      reply.code(400); return { error: 'providerId required' };
+    }
+    const prov = deps.db.prepare(`SELECT id FROM providers WHERE id=?`).get(b.providerId);
+    if (!prov) { reply.code(400); return { error: 'provider not found' }; }
+    const now = Date.now();
+    try {
+      deps.db.prepare(
+        `INSERT INTO models (model_name, provider_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?)`,
+      ).run(b.modelName, b.providerId, now, now);
+    } catch (e: any) {
+      if (String(e.message).includes('UNIQUE')) {
+        // Already exists — treat as idempotent and PATCH provider
+        deps.db.prepare(`UPDATE models SET provider_id=?, updated_at=? WHERE model_name=?`)
+               .run(b.providerId, now, b.modelName);
+      } else throw e;
+    }
+    return { modelName: b.modelName, providerId: b.providerId };
+  });
+
   app.patch('/api/models/:model', async (req, reply) => {
     const model = (req.params as { model: string }).model;
     if (!MODEL_RE.test(model)) { reply.code(400); return { error: 'invalid model name' }; }

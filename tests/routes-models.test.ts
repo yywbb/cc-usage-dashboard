@@ -74,6 +74,28 @@ describe('/api/models', () => {
     } finally { await cleanup(); }
   });
 
+  it('POST /api/models registers a new model under a provider', async () => {
+    const { app, db, cleanup } = await setup();
+    try {
+      const cr = await app.inject({
+        method: 'POST', url: '/api/providers',
+        payload: { slug: 'glm', displayName: 'GLM' },
+        headers: { 'content-type': 'application/json' },
+      });
+      const provId = cr.json().id as number;
+      const r = await app.inject({
+        method: 'POST', url: '/api/models',
+        payload: { modelName: 'glm-4-air', providerId: provId },
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(r.statusCode).toBe(200);
+      const got = db.prepare(
+        `SELECT p.slug FROM models m JOIN providers p ON p.id=m.provider_id WHERE m.model_name='glm-4-air'`,
+      ).get() as { slug: string };
+      expect(got.slug).toBe('glm');
+    } finally { await cleanup(); }
+  });
+
   it('DELETE removes a model and cascades its pricing windows', async () => {
     const { app, db, cleanup } = await setup();
     try {
