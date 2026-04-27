@@ -33,6 +33,13 @@ export interface OverviewResponse {
   };
   byModel: Array<{ model: string; tokens: number; costUsd: number; share: number }>;
   byProject: Array<{ projectDir: string; displayName: string; tokens: number; costUsd: number; share: number }>;
+  byProvider: Array<{
+    providerSlug: string;
+    providerDisplayName: string;
+    tokens: number;
+    costUsd: number;
+    share: number;
+  }>;
   byTool: Array<{ tool: string; count: number }>;
   topSessions: Array<{
     sessionId: string;
@@ -51,6 +58,7 @@ export interface OverviewResponse {
     cacheRead: number;
     costUsd: number;
     byModel: Record<string, number>;
+    byProvider: Record<string, number>; // NEW: provider slug → tokens
   }>;
   cacheHitRate: number;
   previous: null | {

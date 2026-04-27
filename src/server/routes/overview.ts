@@ -60,6 +60,22 @@ function computeOverview(
     model: m.model, tokens: m.tokens, costUsd: m.costUsd, share: m.tokens / totalTokens
   }));
 
+  // After byModel computation:
+  const byProviderRaw = db.prepare(
+    `SELECT p.slug AS providerSlug, p.display_name AS providerDisplayName,
+            COALESCE(SUM(msg.input_tokens + msg.output_tokens
+                       + msg.cache_creation_tokens + msg.cache_read_tokens), 0) AS tokens,
+            COALESCE(SUM(msg.cost_usd), 0) AS costUsd
+     FROM messages msg
+     JOIN models m ON m.model_name = msg.model
+     JOIN providers p ON p.id = m.provider_id
+     WHERE msg.model IS NOT NULL AND msg.timestamp BETWEEN ? AND ?
+     GROUP BY p.slug
+     ORDER BY tokens DESC`,
+  ).all(r.from, r.to) as Array<{ providerSlug: string; providerDisplayName: string; tokens: number; costUsd: number }>;
+  const totalTokensProv = byProviderRaw.reduce((a, x) => a + x.tokens, 0) || 1;
+  const byProvider = byProviderRaw.map(p => ({ ...p, share: p.tokens / totalTokensProv }));
+
   const byProject = (db.prepare(
     `SELECT s.project_dir, p.display_name as displayName,
             SUM(m.input_tokens + m.output_tokens + m.cache_creation_tokens + m.cache_read_tokens) as tokens,
@@ -99,6 +115,7 @@ function computeOverview(
         cacheCreate: 0, cacheRead: 0,
         costUsd: 0,
         byModel: {} as Record<string, number>,
+        byProvider: {} as Record<string, number>,
       };
       dailyMap.set(row.d, b);
     }
@@ -109,6 +126,31 @@ function computeOverview(
     b.costUsd += row.cost;
     b.byModel[row.model] = (b.byModel[row.model] ?? 0) + row.tot;
   }
+
+  const dailyByProviderRaw = db.prepare(
+    `SELECT ${bucketExpr} AS d, p.slug AS providerSlug,
+            SUM(msg.input_tokens + msg.output_tokens
+              + msg.cache_creation_tokens + msg.cache_read_tokens) AS tot
+     FROM messages msg
+     JOIN models m ON m.model_name = msg.model
+     JOIN providers p ON p.id = m.provider_id
+     WHERE msg.model IS NOT NULL AND msg.timestamp BETWEEN ? AND ?
+     GROUP BY d, p.slug
+     ORDER BY d`,
+  ).all(r.from, r.to) as Array<{ d: string; providerSlug: string; tot: number }>;
+  for (const row of dailyByProviderRaw) {
+    let b = dailyMap.get(row.d);
+    if (!b) {
+      b = {
+        date: row.d, inputTokens: 0, outputTokens: 0, cacheCreate: 0, cacheRead: 0,
+        costUsd: 0, byModel: {}, byProvider: {},
+      };
+      dailyMap.set(row.d, b);
+    }
+    if (!b.byProvider) b.byProvider = {};
+    b.byProvider[row.providerSlug] = (b.byProvider[row.providerSlug] ?? 0) + row.tot;
+  }
+
   const dailyTrend = [...dailyMap.values()];
 
   const cacheDenominator = totals.i + totals.cc + totals.cr;
@@ -174,6 +216,7 @@ function computeOverview(
     },
     byModel: byModelOut,
     byProject,
+    byProvider,
     byTool,
     topSessions,
     dailyTrend,

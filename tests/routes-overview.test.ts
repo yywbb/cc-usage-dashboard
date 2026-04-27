@@ -32,4 +32,20 @@ describe('/api/overview', () => {
       expect(typeof body.cacheHitRate).toBe('number');
     } finally { await cleanup(); }
   });
+
+  it('returns byProvider aggregates and per-bucket byProvider', async () => {
+    const { app, cleanup } = await seeded(); // seeds session-sample.jsonl
+    try {
+      const res = await app.inject({ method: 'GET', url: '/api/overview?range=all&granularity=day' });
+      const body = res.json();
+      expect(Array.isArray(body.byProvider)).toBe(true);
+      const anthropic = body.byProvider.find((b: any) => b.providerSlug === 'anthropic');
+      expect(anthropic).toBeDefined();
+      expect(anthropic.tokens).toBeGreaterThan(0);
+      expect(anthropic.share).toBeGreaterThan(0);
+      const firstBucket = body.dailyTrend[0];
+      expect(firstBucket.byProvider).toBeDefined();
+      expect(typeof firstBucket.byProvider).toBe('object');
+    } finally { await cleanup(); }
+  });
 });
