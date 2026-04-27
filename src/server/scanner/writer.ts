@@ -1,6 +1,6 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { ParsedMessage } from '../../shared/types.js';
-import { computeCostUsdWith, loadPriceTable } from '../pricing.js';
+import { loadPriceCtx, priceFor, applyPrice } from '../pricing.js';
 
 export function upsertProject(
   db: DatabaseType,
@@ -21,11 +21,11 @@ export function insertMessages(
   db: DatabaseType,
   projectDir: string,
   sessionId: string,
-  msgs: ParsedMessage[]
+  msgs: ParsedMessage[],
 ): number {
   if (msgs.length === 0) return 0;
   ensureSession(db, sessionId, projectDir);
-  const priceTable = loadPriceTable(db);
+  const ctx = loadPriceCtx(db);
   const stmt = db.prepare(
     `INSERT OR IGNORE INTO messages
        (message_id, session_id, parent_uuid, role, model, timestamp,
@@ -36,18 +36,22 @@ export function insertMessages(
   const tx = db.transaction((rows: ParsedMessage[]) => {
     let inserted = 0;
     for (const m of rows) {
-      const cost = m.model
-        ? computeCostUsdWith(priceTable, m.model, {
+      let cost = 0;
+      if (m.model) {
+        const price = priceFor(ctx, m.model, m.timestamp);
+        if (price) {
+          cost = applyPrice(price, {
             inputTokens: m.inputTokens,
             outputTokens: m.outputTokens,
             cacheCreationTokens: m.cacheCreationTokens,
             cacheReadTokens: m.cacheReadTokens,
-          })
-        : 0;
+          });
+        }
+      }
       const r = stmt.run(
         m.messageId, m.sessionId, m.parentUuid, m.role, m.model, m.timestamp,
         m.inputTokens, m.outputTokens, m.cacheCreationTokens, m.cacheReadTokens,
-        cost, m.stopReason, JSON.stringify(m.toolNames), m.textPreview
+        cost, m.stopReason, JSON.stringify(m.toolNames), m.textPreview,
       );
       if (r.changes > 0) inserted++;
     }

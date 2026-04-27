@@ -30,6 +30,23 @@ const msg = (overrides: Partial<ParsedMessage>): ParsedMessage => ({
 });
 
 describe('writer', () => {
+  it('an unknown model gets cost 0 and is auto-created under unknown provider', () => {
+    const { db, cleanup } = makeDb();
+    try {
+      upsertProject(db, { projectDir: '/p', displayName: 'p', realPath: null });
+      insertMessages(db, '/p', 's-1', [
+        msg({ messageId: 'a', model: 'mystery-model', timestamp: 1 }),
+      ]);
+      const m = db.prepare(`SELECT cost_usd FROM messages WHERE message_id='a'`).get() as { cost_usd: number };
+      expect(m.cost_usd).toBe(0);
+      const r = db.prepare(
+        `SELECT p.slug FROM models md JOIN providers p ON p.id=md.provider_id
+         WHERE md.model_name='mystery-model'`,
+      ).get() as { slug: string };
+      expect(r.slug).toBe('unknown');
+    } finally { cleanup(); }
+  });
+
   it('inserts messages with computed cost and populates sessions on recompute', () => {
     const { db, cleanup } = makeDb();
     try {

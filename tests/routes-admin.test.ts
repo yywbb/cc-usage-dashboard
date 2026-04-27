@@ -30,4 +30,18 @@ describe('admin routes', () => {
       expect(res.json()).toHaveProperty('scannedFiles');
     } finally { await cleanup(); }
   });
+
+  it('POST /api/recompute-cost returns unconfiguredCount', async () => {
+    const { app, cleanup } = await makeApp();
+    try {
+      // Scan first so there are messages
+      await app.inject({ method: 'POST', url: '/api/scan' });
+      const res = await app.inject({ method: 'POST', url: '/api/recompute-cost' });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body).toHaveProperty('updatedSessions');
+      expect(body).toHaveProperty('totalCostUsd');
+      expect(body.unconfiguredCount).toBe(0); // all messages are claude-* (registered under anthropic)
+    } finally { await cleanup(); }
+  });
 });
