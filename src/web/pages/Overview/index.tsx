@@ -104,7 +104,7 @@ function OverviewBody({
   onGranularityChange: (g: TrendGranularity) => void;
 }) {
   const fmtTokens = useFormatTokens();
-  const [trendMode, setTrendMode] = useState<'model' | 'type'>('model');
+  const [trendMode, setTrendMode] = useState<'model' | 'type' | 'provider'>('model');
   const totalTokens = data.totals.inputTokens + data.totals.outputTokens + data.totals.cacheCreate + data.totals.cacheRead;
   const prev = data.previous;
   const prevTotalTokens = prev
@@ -139,6 +139,16 @@ function OverviewBody({
     areaStyle: { opacity: 0.7 },
     smooth: false,
     data: data.dailyTrend.map(d => d.byModel[model] ?? 0),
+  }));
+  const trendProviders = new Set<string>();
+  data.dailyTrend.forEach(d => Object.keys(d.byProvider ?? {}).forEach(p => trendProviders.add(p)));
+  const seriesByProvider = [...trendProviders].map(slug => ({
+    name: slug,
+    type: 'line',
+    stack: 'all',
+    areaStyle: { opacity: 0.7 },
+    smooth: false,
+    data: data.dailyTrend.map(d => d.byProvider?.[slug] ?? 0),
   }));
   const seriesByType = [
     { name: 'Input',        key: 'inputTokens'  as const, color: t.chartPalette[0] },
@@ -181,7 +191,11 @@ function OverviewBody({
     tooltip: { valueFormatter: (v: unknown) => v == null ? '—' : `${Number(v).toFixed(1)}%` },
   };
   const series = [
-    ...(trendMode === 'type' ? seriesByType : seriesByModel),
+    ...(trendMode === 'type'
+      ? seriesByType
+      : trendMode === 'provider'
+        ? seriesByProvider
+        : seriesByModel),
     hitRateSeries,
   ];
 
@@ -236,14 +250,24 @@ function OverviewBody({
       <Row gutter={14} style={{ marginBottom: 18 }}>
         <Col span={16}>
           <Card
-            title={trendMode === 'type' ? 'Token 趋势 · 按类型堆叠' : 'Token 趋势 · 按模型堆叠'}
+            title={
+              trendMode === 'type'
+                ? 'Token 趋势 · 按类型堆叠'
+                : trendMode === 'provider'
+                  ? 'Token 趋势 · 按供应商堆叠'
+                  : 'Token 趋势 · 按模型堆叠'
+            }
             extra={
               <Space size={8}>
                 <Segmented
                   size="small"
-                  options={[{ label: '模型', value: 'model' }, { label: '类型', value: 'type' }]}
+                  options={[
+                    { label: '模型', value: 'model' },
+                    { label: '类型', value: 'type' },
+                    { label: '供应商', value: 'provider' },
+                  ]}
                   value={trendMode}
-                  onChange={(v) => setTrendMode(v as 'model' | 'type')}
+                  onChange={(v) => setTrendMode(v as 'model' | 'type' | 'provider')}
                 />
                 {allowHour ? (
                   <Segmented
@@ -335,7 +359,7 @@ function OverviewBody({
       </Row>
 
       <Row gutter={14} style={{ marginBottom: 18 }}>
-        <Col span={8}>
+        <Col span={6}>
           <Card title="按项目 · Top 10"
                 extra={<span style={{ fontSize: 11, color: t.textSecondary }}>按 token</span>}>
             <BarList
@@ -344,7 +368,7 @@ function OverviewBody({
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card title="按模型 · 用量分布"
                 extra={<span style={{ fontSize: 11, color: t.textSecondary }}>按 token</span>}>
             <BarList
@@ -353,7 +377,17 @@ function OverviewBody({
             />
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
+          <Card title="按供应商 · 用量分布"
+                extra={<span style={{ fontSize: 11, color: t.textSecondary }}>按 token</span>}>
+            <BarList
+              items={data.byProvider.map(p => ({ label: p.providerDisplayName, value: p.tokens }))}
+              formatter={fmtTokens}
+              emptyText="暂无供应商数据"
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
           <Card title="按工具 · Top 10"
                 extra={<span style={{ fontSize: 11, color: t.textSecondary }}>按调用次数</span>}>
             <BarList
