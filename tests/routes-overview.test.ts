@@ -42,10 +42,10 @@ describe('/api/overview', () => {
       const anthropic = body.byProvider.find((b: any) => b.providerSlug === 'anthropic');
       expect(anthropic).toBeDefined();
       expect(anthropic.tokens).toBeGreaterThan(0);
-      expect(anthropic.share).toBeGreaterThan(0);
+      expect(anthropic.share).toBeCloseTo(1.0);
       const firstBucket = body.dailyTrend[0];
       expect(firstBucket.byProvider).toBeDefined();
-      expect(typeof firstBucket.byProvider).toBe('object');
+      expect(firstBucket.byProvider.anthropic).toBeGreaterThan(0);
     } finally { await cleanup(); }
   });
 });

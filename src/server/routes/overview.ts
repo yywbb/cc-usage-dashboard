@@ -60,7 +60,6 @@ function computeOverview(
     model: m.model, tokens: m.tokens, costUsd: m.costUsd, share: m.tokens / totalTokens
   }));
 
-  // After byModel computation:
   const byProviderRaw = db.prepare(
     `SELECT p.slug AS providerSlug, p.display_name AS providerDisplayName,
             COALESCE(SUM(msg.input_tokens + msg.output_tokens
@@ -139,15 +138,10 @@ function computeOverview(
      ORDER BY d`,
   ).all(r.from, r.to) as Array<{ d: string; providerSlug: string; tot: number }>;
   for (const row of dailyByProviderRaw) {
-    let b = dailyMap.get(row.d);
-    if (!b) {
-      b = {
-        date: row.d, inputTokens: 0, outputTokens: 0, cacheCreate: 0, cacheRead: 0,
-        costUsd: 0, byModel: {}, byProvider: {},
-      };
-      dailyMap.set(row.d, b);
-    }
-    if (!b.byProvider) b.byProvider = {};
+    const b = dailyMap.get(row.d);
+    // dailyRaw runs first against the same WHERE clause, so every bucket key
+    // emitted here already exists in dailyMap. Skip defensively.
+    if (!b) continue;
     b.byProvider[row.providerSlug] = (b.byProvider[row.providerSlug] ?? 0) + row.tot;
   }
 
