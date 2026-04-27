@@ -113,13 +113,21 @@ export async function registerPricing(app: FastifyInstance, deps: PricingDeps) {
       modelName: string; providerId: number; providerSlug: string; providerDisplayName: string;
       totalTokens: number; costUsd: number; messageCount: number;
     }>;
-    // Attach current effective price (latest pricing window OR DEFAULT_PRICING_PER_M).
+    // Attach current effective price (latest pricing window <= today OR DEFAULT_PRICING_PER_M).
     const winStmt = deps.db.prepare(
       `SELECT input, output, cache_create AS cacheCreate, cache_read AS cacheRead, effective_from AS effectiveFrom
-       FROM pricing WHERE model_name = ? ORDER BY effective_from DESC LIMIT 1`,
+       FROM pricing WHERE model_name = ? AND effective_from <= ?
+       ORDER BY effective_from DESC LIMIT 1`,
     );
+    const today = (() => {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    })();
     return rows.map(r => {
-      const w = winStmt.get(r.modelName) as
+      const w = winStmt.get(r.modelName, today) as
         | (ModelPriceM & { effectiveFrom: string }) | undefined;
       const def = DEFAULT_PRICING_PER_M[r.modelName] ?? null;
       let currentPrice: ModelPriceM | null = w ?? def;

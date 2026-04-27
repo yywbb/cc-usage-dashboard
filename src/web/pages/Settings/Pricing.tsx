@@ -5,7 +5,7 @@ import {
   Empty, Select, InputNumber, DatePicker, message,
 } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import { api } from '../../api/client.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
@@ -50,7 +50,7 @@ export default function PricingSettings() {
   const [addOpen, setAddOpen] = useState(false);
   const [form] = Form.useForm<{
     modelName: string; providerId: number;
-    effectiveFrom: any; input: number; output: number; cacheCreate: number; cacheRead: number;
+    effectiveFrom: Dayjs; input: number; output: number; cacheCreate: number; cacheRead: number;
   }>();
 
   const providers = useQuery({
@@ -182,6 +182,7 @@ export default function PricingSettings() {
                   <Select<number>
                     size="small"
                     style={{ width: 140 }}
+                    disabled={moveMut.isPending}
                     value={r.providerId}
                     onChange={(pid) => moveMut.mutate({ model: r.modelName, providerId: pid })}
                     options={(providers.data ?? []).map(p => ({ label: p.displayName, value: p.id }))}

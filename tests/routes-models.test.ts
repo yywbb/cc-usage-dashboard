@@ -96,6 +96,23 @@ describe('/api/models', () => {
     } finally { await cleanup(); }
   });
 
+  it('GET /api/models currentPrice ignores future-dated windows', async () => {
+    const { app, cleanup } = await setup();
+    try {
+      // Add a window dated far in the future
+      const r = await app.inject({
+        method: 'POST', url: '/api/pricing/claude-sonnet-4-6',
+        payload: { effectiveFrom: '2099-01-01', input: 99, output: 99, cacheCreate: 99, cacheRead: 99 },
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(r.statusCode).toBe(200);
+      const list = await app.inject({ method: 'GET', url: '/api/models' });
+      const sonnet = (list.json() as Array<any>).find(m => m.modelName === 'claude-sonnet-4-6');
+      expect(sonnet.priceSource).toBe('default'); // future window should not be picked
+      expect(sonnet.currentPrice.input).toBe(3);  // matches DEFAULT_PRICING_PER_M, not 99
+    } finally { await cleanup(); }
+  });
+
   it('DELETE removes a model and cascades its pricing windows', async () => {
     const { app, db, cleanup } = await setup();
     try {
