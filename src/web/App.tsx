@@ -50,9 +50,17 @@ export default function App() {
   const selected = menu.find(m => loc.pathname.startsWith(m.key))?.key ?? '/overview';
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Layout.Sider width={220} style={{ background: t.sidebarBg }}>
-        <div style={{ padding: '18px 20px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 10 }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+      <Layout.Sider
+        width={220}
+        style={{
+          background: t.sidebarBg,
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{
             width: 28, height: 28, borderRadius: 7,
             background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
@@ -65,17 +73,18 @@ export default function App() {
           </div>
         </div>
         <Menu theme="dark" mode="inline" selectedKeys={[selected]} items={menu}
-              style={{ background: t.sidebarBg, border: 'none', padding: '10px 8px' }} />
-        <div style={{ padding: '14px 20px', fontSize: 11, color: '#64748b', borderTop: '1px solid #1e293b', marginTop: 12 }}>
+              style={{ background: t.sidebarBg, border: 'none', padding: '10px 8px', flex: 1, overflowY: 'auto' }} />
+        <div style={{ padding: '14px 20px', fontSize: 11, color: '#64748b', borderTop: '1px solid #1e293b', flexShrink: 0 }}>
           最近扫描 · {formatRelativeTime(health.data?.lastScanAt ?? null)}
         </div>
       </Layout.Sider>
 
-      <Layout>
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
         <Layout.Header style={{
-          background: t.cardBg, padding: `0 ${SPACING.pageX}px`, height: 72,
+          background: t.cardBg, padding: `0 ${SPACING.pageX}px`, height: 72, lineHeight: '72px',
           borderBottom: `1px solid ${t.border}`,
           display: 'flex', alignItems: 'center', gap: 24,
+          flexShrink: 0,
         }}>
           <div ref={setContainer} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 24 }} />
           <div style={{ width: 1, height: 24, background: t.border }} />
@@ -89,7 +98,7 @@ export default function App() {
             >刷新数据</Button>
           </div>
         </Layout.Header>
-        <Layout.Content style={{ padding: `${SPACING.pageY}px ${SPACING.pageX}px`, background: t.pageBg }}>
+        <Layout.Content style={{ padding: `${SPACING.pageY}px ${SPACING.pageX}px`, background: t.pageBg, overflowY: 'auto', flex: 1 }}>
           <AppRoutes />
         </Layout.Content>
       </Layout>
