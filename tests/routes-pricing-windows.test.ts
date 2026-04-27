@@ -88,6 +88,30 @@ describe('/api/pricing/:model', () => {
     } finally { await cleanup(); }
   });
 
+  it('PATCH rejects duplicate (model, effectiveFrom) with 409', async () => {
+    const { app, cleanup } = await setup();
+    try {
+      const a = await app.inject({
+        method: 'POST', url: '/api/pricing/claude-sonnet-4-6',
+        payload: { effectiveFrom: '2026-04-01', input: 1, output: 1, cacheCreate: 1, cacheRead: 1 },
+        headers: { 'content-type': 'application/json' },
+      });
+      const b = await app.inject({
+        method: 'POST', url: '/api/pricing/claude-sonnet-4-6',
+        payload: { effectiveFrom: '2026-05-01', input: 2, output: 2, cacheCreate: 2, cacheRead: 2 },
+        headers: { 'content-type': 'application/json' },
+      });
+      const aId = a.json().id as number;
+      // Try to PATCH row a's effectiveFrom to collide with row b's
+      const r = await app.inject({
+        method: 'PATCH', url: `/api/pricing/${aId}`,
+        payload: { effectiveFrom: '2026-05-01', input: 3, output: 3, cacheCreate: 3, cacheRead: 3 },
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(r.statusCode).toBe(409);
+    } finally { await cleanup(); }
+  });
+
   it('POST returns 404 if model not registered', async () => {
     const { app, cleanup } = await setup();
     try {

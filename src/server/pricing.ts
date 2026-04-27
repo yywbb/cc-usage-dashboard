@@ -79,7 +79,10 @@ export function loadPriceCtx(db: DatabaseType): PriceCtx {
   const defaults = new Map<string, ModelPriceM>();
   for (const [k, v] of Object.entries(DEFAULT_PRICING_PER_M)) defaults.set(k, v);
 
-  const unk = db.prepare(`SELECT id FROM providers WHERE slug='unknown'`).get() as { id: number };
+  const unk = db.prepare(`SELECT id FROM providers WHERE slug='unknown'`).get() as
+    | { id: number }
+    | undefined;
+  if (!unk) throw new Error("loadPriceCtx: 'unknown' provider missing — migration 003 not applied");
 
   return { db, modelMeta, windowsByModel, defaults, unknownProviderId: unk.id };
 }

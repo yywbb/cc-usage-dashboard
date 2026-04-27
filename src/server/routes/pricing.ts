@@ -202,10 +202,18 @@ export async function registerPricing(app: FastifyInstance, deps: PricingDeps) {
       reply.code(400); return { error: 'effectiveFrom must be YYYY-MM-DD' };
     }
     const note = typeof b.note === 'string' ? b.note : null;
-    const r = deps.db.prepare(
-      `UPDATE pricing SET effective_from=?, input=?, output=?, cache_create=?, cache_read=?, note=?
-       WHERE id=?`,
-    ).run(b.effectiveFrom, price.input, price.output, price.cacheCreate, price.cacheRead, note, id);
+    let r: ReturnType<ReturnType<typeof deps.db.prepare>['run']>;
+    try {
+      r = deps.db.prepare(
+        `UPDATE pricing SET effective_from=?, input=?, output=?, cache_create=?, cache_read=?, note=?
+         WHERE id=?`,
+      ).run(b.effectiveFrom, price.input, price.output, price.cacheCreate, price.cacheRead, note, id);
+    } catch (e: any) {
+      if (String(e.message).includes('UNIQUE')) {
+        reply.code(409); return { error: 'pricing window for that date already exists' };
+      }
+      throw e;
+    }
     if (r.changes === 0) { reply.code(404); return { error: 'not found' }; }
     return { id, effectiveFrom: b.effectiveFrom, ...price, note };
   });
