@@ -1,32 +1,62 @@
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Table } from 'antd';
+import { Table, Row, Col, Segmented } from 'antd';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import type { ProjectRow } from '../../../shared/types.js';
 import PageHeader from '../../components/PageHeader.js';
+import KpiCard from '../../components/KpiCard.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { useFormatTokens } from '../../format.js';
 
 function b64(p: string) { return btoa(p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
+type SortBy = 'cost' | 'tokens' | 'sessions';
+const SORT_OPTIONS: { label: string; value: SortBy }[] = [
+  { label: '成本', value: 'cost' },
+  { label: 'Token', value: 'tokens' },
+  { label: '会话数', value: 'sessions' },
+];
+
 export default function ProjectsList() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
   const fmtTokens = useFormatTokens();
+  const [sortBy, setSortBy] = useState<SortBy>('cost');
   const { data, isLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => api.get<ProjectRow[]>('/api/projects?sortBy=cost'),
+    queryKey: ['projects', sortBy],
+    queryFn: () => api.get<ProjectRow[]>(`/api/projects?sortBy=${sortBy}`),
   });
-  const maxCost = Math.max(...(data ?? []).map(r => r.totalCostUsd), 0);
+  const rows = data ?? [];
+  const maxCost = Math.max(...rows.map(r => r.totalCostUsd), 0);
+  const stats = useMemo(() => rows.reduce(
+    (acc, r) => {
+      acc.sessionCount += r.sessionCount;
+      acc.totalTokens += r.totalTokens;
+      acc.totalCostUsd += r.totalCostUsd;
+      return acc;
+    },
+    { sessionCount: 0, totalTokens: 0, totalCostUsd: 0 },
+  ), [rows]);
 
   return (
     <>
-      <PageHeader title="项目" subtitle="按成本排序" />
+      <PageHeader
+        title="项目"
+        subtitle={`共 ${rows.length} 条`}
+        extra={<Segmented options={SORT_OPTIONS} value={sortBy} onChange={(v) => setSortBy(v as SortBy)} />}
+      />
+      <Row gutter={14} style={{ marginBottom: 16 }}>
+        <Col span={6}><KpiCard title="项目数" value={rows.length} /></Col>
+        <Col span={6}><KpiCard title="总会话数" value={stats.sessionCount} /></Col>
+        <Col span={6}><KpiCard title="总 Token" value={stats.totalTokens} formatter={fmtTokens} /></Col>
+        <Col span={6}><KpiCard title="总成本" value={stats.totalCostUsd} precision={2} suffix="$" /></Col>
+      </Row>
       <Table<ProjectRow>
         loading={isLoading}
         rowKey="projectDir"
-        dataSource={data ?? []}
+        dataSource={rows}
         pagination={{
           defaultPageSize: 15,
           pageSizeOptions: [10, 15, 20, 50, 100],
