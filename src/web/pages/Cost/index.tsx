@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Segmented, Row, Col, Table, Button, Input } from 'antd';
+import { Card, Segmented, Row, Col, Table, Button, Input, Checkbox, Space } from 'antd';
 import { SearchOutlined, DownloadOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { api } from '../../api/client.js';
@@ -20,6 +20,8 @@ export default function Cost() {
   const fmtTokens = useFormatTokens();
   const [gran, setGran] = useState<Granularity>('day');
   const [q, setQ] = useState('');
+  type Overlay = 'total' | 'ma' | 'cum';
+  const [overlays, setOverlays] = useState<Overlay[]>(['total']);
 
   const { data } = useQuery({
     queryKey: ['cost', gran],
@@ -81,9 +83,73 @@ export default function Cost() {
     };
   }
 
-  const filteredBuckets = q
+  const totals = buckets.map(b => b.costUsd);
+  const maWindow = gran === 'day' ? 7 : gran === 'week' ? 4 : 3;
+  const movingAvg = totals.map((_, i) => {
+    const start = Math.max(0, i - maWindow + 1);
+    const slice = totals.slice(start, i + 1);
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+  const cumulative: number[] = [];
+  totals.reduce((acc, v, i) => { cumulative[i] = acc + v; return cumulative[i]; }, 0);
+
+  const projectLegend = [
+    ...topProjects.map(shortProjectName),
+    ...(otherProjects.size > 0 ? [`其他(${otherProjects.size})`] : []),
+  ];
+
+  const showCum = overlays.includes('cum');
+  const STAT_TOTAL = '总额';
+  const STAT_MA = `均线(${maWindow})`;
+  const STAT_CUM = '累计';
+  const totalColor = mode === 'dark' ? '#f472b6' : '#db2777';
+  const maColor = mode === 'dark' ? '#fbbf24' : '#d97706';
+  const cumColor = mode === 'dark' ? '#5eead4' : '#0d9488';
+  if (overlays.includes('total')) {
+    series.push({
+      name: STAT_TOTAL, type: 'line', smooth: 0.35, z: 5,
+      showSymbol: false, symbol: 'circle', symbolSize: 6,
+      itemStyle: { color: totalColor, borderColor: '#fff', borderWidth: 1.5 },
+      lineStyle: { color: totalColor, width: 2.2, shadowColor: totalColor, shadowBlur: 6 },
+      emphasis: { focus: 'series', scale: 1.4 },
+      data: totals.map(v => +v.toFixed(2)),
+    });
+  }
+  if (overlays.includes('ma')) {
+    series.push({
+      name: STAT_MA, type: 'line', smooth: 0.5, z: 6,
+      showSymbol: false, symbol: 'none',
+      itemStyle: { color: maColor },
+      lineStyle: { color: maColor, width: 1.8, type: [6, 4] },
+      emphasis: { focus: 'series' },
+      data: movingAvg.map(v => +v.toFixed(2)),
+    });
+  }
+  if (showCum) {
+    series.push({
+      name: STAT_CUM, type: 'line', yAxisIndex: 1, smooth: 0.35, z: 4,
+      showSymbol: false, symbol: 'none',
+      itemStyle: { color: cumColor },
+      lineStyle: { color: cumColor, width: 1.8, opacity: 0.85 },
+      areaStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: cumColor + '55' },
+            { offset: 1, color: cumColor + '00' },
+          ],
+        },
+      },
+      emphasis: { focus: 'series' },
+      data: cumulative.map(v => +v.toFixed(2)),
+    });
+  }
+  const STAT_NAMES = new Set([STAT_TOTAL, STAT_MA, STAT_CUM]);
+
+  const filteredBuckets = (q
     ? buckets.filter(b => b.bucketKey.toLowerCase().includes(q.toLowerCase()))
-    : buckets;
+    : buckets
+  ).slice().sort((a, b) => b.bucketKey.localeCompare(a.bucketKey));
 
   return (
     <>
@@ -112,7 +178,23 @@ export default function Cost() {
 
       <Row gutter={14}>
         <Col span={18}>
-          <Card title="成本堆叠(按项目)">
+          <Card
+            title="成本堆叠(按项目)"
+            extra={
+              <Space size={4}>
+                <span style={{ fontSize: 11, color: t.textSecondary }}>趋势</span>
+                <Checkbox.Group
+                  options={[
+                    { label: '总额', value: 'total' },
+                    { label: '均线', value: 'ma' },
+                    { label: '累计', value: 'cum' },
+                  ]}
+                  value={overlays}
+                  onChange={(v) => setOverlays(v as Overlay[])}
+                />
+              </Space>
+            }
+          >
             <ReactECharts
               theme={echartsThemeName(mode)}
               style={{ height: 380 }}
@@ -126,18 +208,29 @@ export default function Cost() {
                       axisValueLabel: string; marker: string; seriesName: string; value: number;
                     }>;
                     if (arr.length === 0) return '';
-                    const rows = arr
-                      .filter(p => Number(p.value) > 0)
+                    const projectRows = arr
+                      .filter(p => !STAT_NAMES.has(p.seriesName) && Number(p.value) > 0)
                       .sort((a, b) => Number(b.value) - Number(a.value));
-                    if (rows.length === 0) return '';
+                    const statRows = arr.filter(p => STAT_NAMES.has(p.seriesName));
+                    if (projectRows.length === 0 && statRows.length === 0) return '';
                     const head = `<div style="margin-bottom:4px">${arr[0].axisValueLabel}</div>`;
-                    const body = rows.map(p =>
+                    const body = projectRows.map(p =>
                       `<div style="display:flex;justify-content:space-between;gap:16px">
                         <span>${p.marker}${p.seriesName}</span>
                         <strong>$${Number(p.value).toFixed(2)}</strong>
                       </div>`
                     ).join('');
-                    return head + body;
+                    const foot = statRows.length > 0
+                      ? `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed ${t.border}">${
+                          statRows.map(p =>
+                            `<div style="display:flex;justify-content:space-between;gap:16px">
+                              <span>${p.marker}${p.seriesName}</span>
+                              <strong>$${Number(p.value).toFixed(2)}</strong>
+                            </div>`
+                          ).join('')
+                        }</div>`
+                      : '';
+                    return head + body + foot;
                   },
                 },
                 legend: {
@@ -147,8 +240,9 @@ export default function Cost() {
                   itemWidth: 10,
                   itemHeight: 10,
                   textStyle: { fontSize: 11 },
+                  data: projectLegend,
                 },
-                grid: { left: 50, right: 20, top: 20, bottom: 50 },
+                grid: { left: 50, right: showCum ? 56 : 20, top: 20, bottom: 50 },
                 xAxis: {
                   type: 'category',
                   data: buckets.map(b => b.bucketKey),
@@ -157,7 +251,12 @@ export default function Cost() {
                     rich: { red: { color: t.danger, fontWeight: 'bold' } },
                   },
                 },
-                yAxis: { type: 'value', name: '$' },
+                yAxis: showCum
+                  ? [
+                      { type: 'value', name: '$' },
+                      { type: 'value', name: '累计 $', splitLine: { show: false } },
+                    ]
+                  : { type: 'value', name: '$' },
                 series,
               }}
             />
