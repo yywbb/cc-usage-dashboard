@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Local dashboard for Claude Code token usage & cost analysis",
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
   "bin": { "ccu": "dist/server/cli.js" },
   "scripts": {
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:web\"",
