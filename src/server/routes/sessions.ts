@@ -24,6 +24,7 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
       projectDir?: string; providers?: string;
       from?: string; to?: string; limit?: string; offset?: string;
       sortBy?: string; sortOrder?: string;
+      source?: string; originator?: string;
     };
     const projectDirs = q.projectDir
       ? q.projectDir.split(',').map(s => s.trim()).filter(Boolean)
@@ -55,24 +56,32 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
     const provParams: Record<string, string> = {};
     providerSlugs.forEach((s, i) => (provParams[`pr${i}`] = s));
 
+    const source = q.source && ['claude', 'codex'].includes(q.source) ? q.source : null;
+    const originator = q.originator ?? null;
+    const whereSource = source ? `AND s.source = @source` : '';
+    const whereOriginator = originator
+      ? `AND s.session_id IN (SELECT session_id FROM messages WHERE originator = @originator)`
+      : '';
+
     const totalRow = db.prepare(
       `SELECT COUNT(*) as n FROM sessions s
-       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv}`
-    ).get({ from, to, ...projParams, ...provParams }) as { n: number };
+       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv} ${whereSource} ${whereOriginator}`
+    ).get({ from, to, ...projParams, ...provParams, source, originator }) as { n: number };
     const total = totalRow.n;
 
     const rows = db.prepare(
       `SELECT s.session_id as sessionId, s.project_dir as projectDir,
+              s.source as source,
               s.started_at as startedAt, s.ended_at as endedAt,
               s.message_count as messageCount,
               s.total_input + s.total_output + s.total_cache_create + s.total_cache_read as totalTokens,
               s.total_cost_usd as totalCostUsd
        FROM sessions s
-       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv}
+       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv} ${whereSource} ${whereOriginator}
        ORDER BY ${SORT_COLUMN[sortBy]} ${sortOrder}, s.session_id ${sortOrder}
        LIMIT @limit OFFSET @offset`
-    ).all({ from, to, limit, offset, ...projParams, ...provParams }) as Array<{
-      sessionId: string; projectDir: string; startedAt: number; endedAt: number;
+    ).all({ from, to, limit, offset, ...projParams, ...provParams, source, originator }) as Array<{
+      sessionId: string; projectDir: string; source: string | null; startedAt: number; endedAt: number;
       messageCount: number; totalTokens: number; totalCostUsd: number;
     }>;
 
@@ -93,8 +102,8 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
     const statRows = db.prepare(
       `SELECT s.total_cost_usd as cost, s.ended_at - s.started_at as durMs
        FROM sessions s
-       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv}`
-    ).all({ from, to, ...projParams, ...provParams }) as Array<{ cost: number; durMs: number }>;
+       WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv} ${whereSource} ${whereOriginator}`
+    ).all({ from, to, ...projParams, ...provParams, source, originator }) as Array<{ cost: number; durMs: number }>;
 
     const totalCostUsd = statRows.reduce((a, r) => a + (r.cost ?? 0), 0);
     const count = statRows.length;
@@ -113,10 +122,12 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
     const { sid } = req.params as { sid: string };
     const session = db.prepare(
       `SELECT session_id as sessionId, project_dir as projectDir,
+              source, cwd_real_path as cwdRealPath,
               started_at as startedAt, ended_at as endedAt,
               message_count as messageCount,
               total_input as totalInput, total_output as totalOutput,
               total_cache_create as totalCacheCreate, total_cache_read as totalCacheRead,
+              total_reasoning as totalReasoning,
               total_cost_usd as totalCostUsd
        FROM sessions WHERE session_id = ?`
     ).get(sid) as Record<string, unknown> | undefined;
@@ -127,7 +138,8 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
               input_tokens as inputTokens, output_tokens as outputTokens,
               cache_creation_tokens as cacheCreate, cache_read_tokens as cacheRead,
               cost_usd as costUsd, stop_reason as stopReason,
-              tool_names as toolNames, text_preview as textPreview
+              tool_names as toolNames, text_preview as textPreview,
+              source, originator, reasoning_tokens as reasoningTokens
        FROM messages WHERE session_id = ? ORDER BY timestamp`
     ).all(sid) as Array<Record<string, unknown> & { toolNames: string | null }>).map(m => ({
       ...m,
@@ -141,6 +153,14 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
       .sort((a, b) => b[1] - a[1])
       .map(([tool, count]) => ({ tool, count, share: count / total }));
 
-    return { session, messages, toolDistribution };
+    const rateLimit = db.prepare(
+      `SELECT observed_at as observedAt,
+              primary_used_pct as primaryUsedPct, primary_window_min as primaryWindowMin, primary_resets_at as primaryResetsAt,
+              secondary_used_pct as secondaryUsedPct, secondary_window_min as secondaryWindowMin, secondary_resets_at as secondaryResetsAt,
+              plan_type as planType
+       FROM codex_rate_limit_snapshots WHERE session_id = ?`
+    ).get(sid) ?? null;
+
+    return { session, messages, toolDistribution, rateLimit };
   });
 }
