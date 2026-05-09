@@ -59,6 +59,7 @@ export default function PricingSettings() {
   const [addOpen, setAddOpen] = useState(false);
   const [filter, setFilter] = useState<ProviderFilter>('all');
   const [search, setSearch] = useState('');
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [lastRecomputeAt, setLastRecomputeAtState] = useState<string | null>(getLastRecomputeAt);
   const [form] = Form.useForm<{
     modelName: string; providerId: number;
@@ -175,6 +176,8 @@ export default function PricingSettings() {
           expandable={{
             expandedRowRender: (r) => <PricingHistoryTable model={r.modelName} />,
             rowExpandable: (r) => r.providerSlug !== 'unknown',
+            expandedRowKeys,
+            onExpandedRowsChange: (keys) => setExpandedRowKeys([...keys]),
           }}
           columns={[
             {
@@ -215,7 +218,7 @@ export default function PricingSettings() {
             {
               title: '价格源', key: 'priceSource', width: 130,
               render: (_: unknown, r: ModelView) => {
-                if (!r.currentPrice) return <span style={{ color: t.danger }}>未配置</span>;
+                if (!r.currentPrice || r.priceSource === 'none') return <span style={{ color: t.danger }}>未配置</span>;
                 if (r.priceSource === 'default') return <Tag>默认</Tag>;
                 return (
                   <Tag color="green" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -268,6 +271,15 @@ export default function PricingSettings() {
                         <Button size="small" type="link">转移</Button>
                       </Tooltip>
                     </Dropdown>
+                    <Button
+                      size="small"
+                      type="link"
+                      onClick={() => {
+                        setExpandedRowKeys((prev) =>
+                          prev.includes(r.modelName) ? prev : [...prev, r.modelName],
+                        );
+                      }}
+                    >编辑</Button>
                   </Space>
                 );
               },
