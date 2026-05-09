@@ -110,6 +110,8 @@ export interface SessionRow {
   totalTokens: number;
   totalCostUsd: number;
   topTools: string[];
+  /** 'claude' | 'codex' — added by Task 10 */
+  source: string | null;
 }
 
 export interface MessageRow {
@@ -125,6 +127,21 @@ export interface MessageRow {
   stopReason: string | null;
   toolNames: string[];
   textPreview: string | null;
+  /** Reasoning tokens (Codex / o-series models) */
+  reasoningTokens: number;
+  source: string | null;
+  originator: string | null;
+}
+
+export interface SessionRateLimit {
+  observedAt: number;
+  primaryUsedPct: number | null;
+  primaryWindowMin: number | null;
+  primaryResetsAt: number | null;
+  secondaryUsedPct: number | null;
+  secondaryWindowMin: number | null;
+  secondaryResetsAt: number | null;
+  planType: string | null;
 }
 
 export interface CostBucket {
