@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Card, Table, Button, Input, Space, Tag, Popconfirm, Modal, Form, Alert,
-  Empty, Select, InputNumber, DatePicker, message,
+  Card, Table, Tag, Modal, Form, Input, InputNumber, DatePicker, Select,
+  Space, Empty, Alert, message, Row, Col,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { api } from '../../api/client.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import ProvidersModal from './ProvidersModal.js';
 import PricingHistoryTable from './PricingHistoryTable.js';
+import PricingHeaderBar from './PricingHeaderBar.js';
+import PricingFilters, { type ProviderFilter } from './PricingFilters.js';
+import { getLastRecomputeAt, setLastRecomputeAt } from './lastRecomputeAt.js';
 
 interface Provider {
   id: number; slug: string; displayName: string; isBuiltin: number; modelCount: number;
@@ -48,6 +50,9 @@ export default function PricingSettings() {
   const qc = useQueryClient();
   const [providersOpen, setProvidersOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [filter, setFilter] = useState<ProviderFilter>('all');
+  const [search, setSearch] = useState('');
+  const [lastRecomputeAt, setLastRecomputeAtState] = useState<string | null>(getLastRecomputeAt);
   const [form] = Form.useForm<{
     modelName: string; providerId: number;
     effectiveFrom: Dayjs; input: number; output: number; cacheCreate: number; cacheRead: number;
@@ -97,37 +102,60 @@ export default function PricingSettings() {
     onSuccess: (r) => {
       const tail = r.unconfiguredCount > 0 ? `（${r.unconfiguredCount} 条因未配置计为 0）` : '';
       message.success(`已重算 ${r.updatedSessions} 个会话，总成本 $${r.totalCostUsd.toFixed(2)}${tail}`);
+      const iso = new Date().toISOString();
+      setLastRecomputeAt(iso);
+      setLastRecomputeAtState(iso);
       qc.invalidateQueries();
     },
     onError: (e: Error) => message.error(e.message),
   });
 
-  const rows = models.data ?? [];
-  const unconfigured = rows.filter(r => r.providerSlug === 'unknown');
+  const allRows = models.data ?? [];
+  const unconfigured = allRows.filter(r => r.providerSlug === 'unknown');
+  const providerOptions = (providers.data ?? [])
+    .filter(p => p.slug !== 'unknown')
+    .map(p => ({ id: p.id, displayName: p.displayName, modelCount: p.modelCount }));
+
+  const rows = useMemo(() => {
+    let list = allRows;
+    if (filter === 'unknown') {
+      list = list.filter(r => r.providerSlug === 'unknown');
+    } else if (typeof filter === 'number') {
+      list = list.filter(r => r.providerId === filter);
+    }
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter(r => r.modelName.toLowerCase().includes(q));
+    return list;
+  }, [allRows, filter, search]);
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
-        <Button onClick={() => setProvidersOpen(true)}>管理供应商</Button>
-        <Button icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增模型</Button>
-        <Button
-          type="primary"
-          icon={<ReloadOutlined />}
-          loading={recomputeMut.isPending}
-          onClick={() => recomputeMut.mutate()}
-        >重算历史成本</Button>
-      </div>
+      <PricingHeaderBar
+        providerCount={providers.data?.filter(p => p.slug !== 'unknown').length ?? 0}
+        modelCount={allRows.length}
+        unconfiguredCount={unconfigured.length}
+        lastRecomputeAt={lastRecomputeAt}
+        isRecomputing={recomputeMut.isPending}
+        onRecompute={() => recomputeMut.mutate()}
+      />
+
+      <PricingFilters
+        providers={providerOptions}
+        unconfiguredCount={unconfigured.length}
+        value={filter}
+        onChange={setFilter}
+        search={search}
+        onSearchChange={setSearch}
+        onAddModel={() => setAddOpen(true)}
+        onManageProviders={() => setProvidersOpen(true)}
+      />
 
       {unconfigured.length > 0 && (
         <Alert
           type="warning" showIcon style={{ marginBottom: 12 }}
-          message={`检测到 ${unconfigured.length} 个未配置模型 (${unconfigured.map(r => r.modelName).join(', ')})，当前成本计为 0。请将其移到正确的供应商并设置价格。`}
+          message={`检测到 ${unconfigured.length} 个未配置模型，当前成本计为 0。在「⚠ Unknown」标签内为它们指派供应商并设价。`}
         />
       )}
-      <Alert
-        type="info" showIcon style={{ marginBottom: 16 }}
-        message="新数据落库时按消息时间戳查窗口价；修改价格不影响已存入的成本，需要手动「重算历史成本」。"
-      />
 
       <Card>
         <Table<ModelView>
@@ -226,20 +254,28 @@ export default function PricingSettings() {
           <Form.Item label="生效日期" name="effectiveFrom" rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
           </Form.Item>
-          <Space size={12} wrap>
-            <Form.Item label="Input ($/M)" name="input" rules={[{ required: true }]}>
-              <InputNumber min={0} step={0.01} style={{ width: 140 }} prefix="$" />
-            </Form.Item>
-            <Form.Item label="Output ($/M)" name="output" rules={[{ required: true }]}>
-              <InputNumber min={0} step={0.01} style={{ width: 140 }} prefix="$" />
-            </Form.Item>
-            <Form.Item label="Cache Create ($/M)" name="cacheCreate" rules={[{ required: true }]}>
-              <InputNumber min={0} step={0.01} style={{ width: 160 }} prefix="$" />
-            </Form.Item>
-            <Form.Item label="Cache Read ($/M)" name="cacheRead" rules={[{ required: true }]}>
-              <InputNumber min={0} step={0.01} style={{ width: 160 }} prefix="$" />
-            </Form.Item>
-          </Space>
+          <Row gutter={[12, 0]}>
+            <Col span={12}>
+              <Form.Item label="Input ($/M)" name="input" rules={[{ required: true }]}>
+                <InputNumber min={0} step={0.01} prefix="$" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Output ($/M)" name="output" rules={[{ required: true }]}>
+                <InputNumber min={0} step={0.01} prefix="$" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Cache Create ($/M)" name="cacheCreate" rules={[{ required: true }]}>
+                <InputNumber min={0} step={0.01} prefix="$" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Cache Read ($/M)" name="cacheRead" rules={[{ required: true }]}>
+                <InputNumber min={0} step={0.01} prefix="$" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </>
