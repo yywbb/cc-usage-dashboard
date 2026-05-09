@@ -1,4 +1,4 @@
-import type { ParsedMessage } from '../../shared/types.js';
+import type { ParsedMessage } from '../../../../shared/types.js';
 
 const PREVIEW_LEN = 200;
 

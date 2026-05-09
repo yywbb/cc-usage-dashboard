@@ -24,7 +24,7 @@ program.command('scan').action(async () => {
   }
   const db = openDb(DB_PATH);
   const t0 = Date.now();
-  const r = scanAll(db, CLAUDE_PROJECTS);
+  const r = scanAll(db, CLAUDE_PROJECTS, { source: 'claude' });
   console.log(chalk.green(
     `Scanned ${r.scannedFiles} files, +${r.newMessages} messages in ${Date.now() - t0}ms`
   ));
@@ -39,7 +39,7 @@ program.command('start')
     const db = openDb(DB_PATH);
     if (existsSync(CLAUDE_PROJECTS)) {
       console.log(chalk.gray('Scanning…'));
-      const r = scanAll(db, CLAUDE_PROJECTS);
+      const r = scanAll(db, CLAUDE_PROJECTS, { source: 'claude' });
       console.log(chalk.gray(`  ${r.scannedFiles} files, +${r.newMessages} messages`));
     }
     const webDir = opts.dev ? undefined : resolve(__dirname, '../web');

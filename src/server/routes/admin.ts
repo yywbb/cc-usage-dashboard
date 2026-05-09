@@ -17,7 +17,7 @@ export async function registerAdmin(app: FastifyInstance, deps: AdminDeps) {
     return { ok: true, lastScanAt };
   });
 
-  app.post('/api/scan', async () => scanAll(deps.db, deps.projectsRoot));
+  app.post('/api/scan', async () => scanAll(deps.db, deps.projectsRoot, { source: 'claude' }));
 
   app.post('/api/recompute-cost', async () => {
     const rows = deps.db.prepare(
