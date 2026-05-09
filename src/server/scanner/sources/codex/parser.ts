@@ -74,7 +74,7 @@ export function parseCodexRollout(content: string): CodexFileResult {
     const dInput     = cur.input_tokens         - prev.input;
     const dCached    = cur.cached_input_tokens  - prev.cached;
     const dOutput    = cur.output_tokens        - prev.output;
-    const dReasoning = cur.reasoning_output_tokens - prev.reasoning;
+    const dReasoning = (cur.reasoning_output_tokens ?? 0) - prev.reasoning;
 
     messages.push({
       messageId: `${sessionId}:${ev.timestamp}`,
@@ -98,7 +98,7 @@ export function parseCodexRollout(content: string): CodexFileResult {
 
     prev = {
       input: cur.input_tokens, cached: cur.cached_input_tokens,
-      output: cur.output_tokens, reasoning: cur.reasoning_output_tokens,
+      output: cur.output_tokens, reasoning: cur.reasoning_output_tokens ?? 0,
       total: cur.total_tokens,
     };
   }

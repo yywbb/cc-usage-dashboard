@@ -53,4 +53,14 @@ describe('parseCodexRollout', () => {
     const out = parseCodexRollout(load('duplicate-token-count.jsonl'));
     expect(out.originator).toBe('codex_vscode');
   });
+
+  it('treats missing reasoning_output_tokens as 0 (no NaN poisoning)', () => {
+    const out = parseCodexRollout(load('no-reasoning-field.jsonl'));
+    expect(out.messages).toHaveLength(1);
+    const m = out.messages[0];
+    expect(m.reasoningTokens).toBe(0);
+    expect(Number.isFinite(m.inputTokens)).toBe(true);
+    expect(Number.isFinite(m.outputTokens)).toBe(true);
+    expect(Number.isFinite(m.cacheReadTokens)).toBe(true);
+  });
 });
