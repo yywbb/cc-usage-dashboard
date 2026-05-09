@@ -91,13 +91,35 @@ describe('migration 004', () => {
       db.prepare(
         `INSERT INTO messages (message_id, session_id, role, timestamp) VALUES ('m1','s1','user',0)`
       ).run();
-      const cols = db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>;
-      expect(cols.map(c => c.name)).toEqual(
+
+      // Assert messages columns
+      const msgCols = db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>;
+      expect(msgCols.map(c => c.name)).toEqual(
         expect.arrayContaining(['source', 'reasoning_tokens', 'originator'])
       );
-      const r = db.prepare(`SELECT source, reasoning_tokens FROM messages WHERE message_id='m1'`).get() as any;
-      expect(r.source).toBe('claude');
-      expect(r.reasoning_tokens).toBe(0);
+
+      // Assert sessions columns
+      const sessCols = db.prepare(`PRAGMA table_info(sessions)`).all() as Array<{ name: string }>;
+      expect(sessCols.map(c => c.name)).toEqual(
+        expect.arrayContaining(['source', 'total_reasoning', 'cwd_real_path'])
+      );
+
+      // Assert projects columns
+      const projCols = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>;
+      expect(projCols.map(c => c.name)).toEqual(
+        expect.arrayContaining(['sources'])
+      );
+
+      // Assert messages data backfill
+      const msgRow = db.prepare(`SELECT source, reasoning_tokens FROM messages WHERE message_id='m1'`).get() as any;
+      expect(msgRow.source).toBe('claude');
+      expect(msgRow.reasoning_tokens).toBe(0);
+
+      // Assert sessions data backfill
+      const sessRow = db.prepare(`SELECT source, total_reasoning FROM sessions WHERE session_id='s1'`).get() as any;
+      expect(sessRow.source).toBe('claude');
+      expect(sessRow.total_reasoning).toBe(0);
+
       db.close();
     } finally { cleanup(); }
   });
