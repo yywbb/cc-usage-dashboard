@@ -1,5 +1,5 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
-import type { ParsedMessage } from '../../shared/types.js';
+import type { ParsedMessage, RateLimitSnapshot } from '../../shared/types.js';
 import { loadPriceCtx, priceFor, applyPrice } from '../pricing.js';
 
 export function upsertProject(
@@ -77,6 +77,46 @@ function ensureSession(
         total_reasoning, total_cost_usd, source, cwd_real_path)
      VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?, ?)`
   ).run(sessionId, projectDir, source, cwdRealPath);
+}
+
+export function upsertCodexProject(
+  db: DatabaseType,
+  p: { projectDir: string; displayName: string; realPath: string },
+): void {
+  const now = Date.now();
+  db.prepare(
+    `INSERT INTO projects (project_dir, display_name, real_path, first_seen_at, last_seen_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(project_dir) DO UPDATE SET
+       display_name = excluded.display_name,
+       real_path = excluded.real_path,
+       last_seen_at = excluded.last_seen_at`,
+  ).run(p.projectDir, p.displayName, p.realPath, now, now);
+}
+
+export function upsertRateLimitSnapshot(db: DatabaseType, s: RateLimitSnapshot): void {
+  db.prepare(
+    `INSERT INTO codex_rate_limit_snapshots
+       (session_id, observed_at,
+        primary_used_pct, primary_window_min, primary_resets_at,
+        secondary_used_pct, secondary_window_min, secondary_resets_at,
+        plan_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(session_id) DO UPDATE SET
+       observed_at = excluded.observed_at,
+       primary_used_pct = excluded.primary_used_pct,
+       primary_window_min = excluded.primary_window_min,
+       primary_resets_at = excluded.primary_resets_at,
+       secondary_used_pct = excluded.secondary_used_pct,
+       secondary_window_min = excluded.secondary_window_min,
+       secondary_resets_at = excluded.secondary_resets_at,
+       plan_type = excluded.plan_type`,
+  ).run(
+    s.sessionId, s.observedAt,
+    s.primaryUsedPct, s.primaryWindowMin, s.primaryResetsAt,
+    s.secondaryUsedPct, s.secondaryWindowMin, s.secondaryResetsAt,
+    s.planType,
+  );
 }
 
 export function recomputeSession(db: DatabaseType, sessionId: string): void {

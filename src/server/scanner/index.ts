@@ -3,11 +3,12 @@ import type { Database as DatabaseType } from 'better-sqlite3';
 import type { ScanResult } from '../../shared/types.js';
 import type { ScanSource, SourceId } from './sources/types.js';
 import { claudeSource } from './sources/claude/index.js';
+import { codexSource } from './sources/codex/index.js';
 
 export const SOURCES: Record<SourceId, ScanSource> = {
   claude: claudeSource,
-  // codex: 注册在 Task 8
-} as Record<SourceId, ScanSource>;
+  codex: codexSource,
+};
 
 export interface ScanAllOptions {
   /** 'all' | 'claude' | 'codex'。默认 'all'。 */
