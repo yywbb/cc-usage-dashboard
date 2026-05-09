@@ -12,7 +12,6 @@ export default function SourceToggle() {
   const setSourceFilter = useStore((s) => s.setSourceFilter);
   return (
     <Segmented
-      size="small"
       options={OPTIONS}
       value={sourceFilter}
       onChange={(v) => setSourceFilter(v as SourceFilter)}

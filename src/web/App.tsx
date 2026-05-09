@@ -9,7 +9,6 @@ import AppRoutes from './routes.js';
 import { api } from './api/client.js';
 import ThemeToggle from './components/ThemeToggle.js';
 import SourceToggle from './components/SourceToggle.js';
-import { RateLimitBadge } from './components/RateLimitBadge.js';
 import { usePageHeader } from './components/PageHeaderContext.js';
 import { useTheme } from './theme/useTheme.js';
 import { TOKENS, SPACING } from './theme/tokens.js';
@@ -60,9 +59,10 @@ export default function App() {
           height: '100vh',
           display: 'flex',
           flexDirection: 'column',
+          borderRight: `1px solid ${t.sidebarBorder}`,
         }}
       >
-        <div style={{ padding: '18px 20px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${t.sidebarBorder}`, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <div style={{
             width: 28, height: 28, borderRadius: 7,
             background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
@@ -70,13 +70,13 @@ export default function App() {
             color: '#fff', fontWeight: 700, fontSize: 14,
           }}>C</div>
           <div>
-            <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 14, letterSpacing: 0.5 }}>CC Usage</div>
-            <div style={{ color: '#64748b', fontSize: 10 }}>v0.1.0 · local</div>
+            <div style={{ color: t.sidebarText, fontWeight: 700, fontSize: 14, letterSpacing: 0.5 }}>CC Usage</div>
+            <div style={{ color: t.sidebarMuted, fontSize: 10 }}>v{__APP_VERSION__} · local</div>
           </div>
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[selected]} items={menu}
+        <Menu theme={t.sidebarMenuTheme} mode="inline" selectedKeys={[selected]} items={menu}
               style={{ background: t.sidebarBg, border: 'none', padding: '10px 8px', flex: 1, overflowY: 'auto' }} />
-        <div style={{ padding: '14px 20px', fontSize: 11, color: '#64748b', borderTop: '1px solid #1e293b', flexShrink: 0 }}>
+        <div style={{ padding: '14px 20px', fontSize: 11, color: t.sidebarMuted, borderTop: `1px solid ${t.sidebarBorder}`, flexShrink: 0 }}>
           最近扫描 · {formatRelativeTime(health.data?.lastScanAt ?? null)}
         </div>
       </Layout.Sider>
@@ -92,7 +92,6 @@ export default function App() {
           <div style={{ width: 1, height: 24, background: t.border }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <SourceToggle />
-            <RateLimitBadge />
             <ThemeToggle />
             <Button
               type="primary"

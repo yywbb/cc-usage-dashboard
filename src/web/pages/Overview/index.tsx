@@ -10,6 +10,7 @@ import BarList from '../../components/BarList.js';
 import EmptyState from '../../components/EmptyState.js';
 import PageHeader from '../../components/PageHeader.js';
 import TokenBreakdown from '../../components/TokenBreakdown.js';
+import { RateLimitGlance } from '../../components/RateLimitBadge.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { echartsThemeName, formatCompactNumber } from '../../theme/echarts.js';
@@ -50,7 +51,11 @@ export default function Overview() {
     <>
       <PageHeader
         title="概览"
-        subtitle="Claude Code token 使用与成本分析"
+        subtitle={
+          sourceFilter === 'claude' ? 'Claude Code token 使用与成本分析'
+          : sourceFilter === 'codex'  ? 'Codex token 使用与成本分析'
+          : 'Claude Code 与 Codex token 使用与成本分析'
+        }
         extra={
           <Segmented
             options={RANGE_OPTIONS}
@@ -353,6 +358,7 @@ function OverviewBody({
               <GlanceLine label="今日成本" value={`$${todayCost.toFixed(2)}`} t={t} />
               <GlanceLine label="最活跃项目" value={topProject} emphasize t={t} />
               <GlanceLine label="本月异常日" value={`${anomalyCount} 日`} danger={anomalyCount > 0} t={t} />
+              <RateLimitGlance />
             </div>
           </Card>
         </Col>

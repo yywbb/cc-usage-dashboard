@@ -62,7 +62,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             Card: { borderRadiusLG: RADIUS.card, paddingLG: 18 },
             Table: { headerBg: t.pageBg, rowHoverBg: t.pageBg },
             Layout: { siderBg: t.sidebarBg, headerBg: t.cardBg, bodyBg: t.pageBg },
-            Menu: { darkItemBg: t.sidebarBg, darkSubMenuItemBg: t.sidebarBg },
+            Menu: {
+              darkItemBg: t.sidebarBg,
+              darkSubMenuItemBg: t.sidebarBg,
+              // Light-mode sidebar tokens — subtle indigo tint on selected, gentle hover.
+              itemBg: t.sidebarBg,
+              subMenuItemBg: t.sidebarBg,
+              itemSelectedBg: 'rgba(79, 70, 229, 0.10)',
+              itemSelectedColor: t.primary,
+              itemHoverBg: 'rgba(15, 23, 42, 0.04)',
+              itemColor: t.textSecondary,
+            },
           },
         }}
       >

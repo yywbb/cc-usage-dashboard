@@ -11,6 +11,11 @@ interface Tokens {
   pageBg: string;
   cardBg: string;
   sidebarBg: string;
+  sidebarBorder: string;
+  sidebarText: string;
+  sidebarMuted: string;
+  /** 'dark' = use Ant Design's dark Menu theme, 'light' = light theme. */
+  sidebarMenuTheme: 'light' | 'dark';
   border: string;
   textPrimary: string;
   textSecondary: string;
@@ -29,7 +34,11 @@ export const TOKENS: Record<Mode, Tokens> = {
     danger: '#ef4444',
     pageBg: '#f7f8fa',
     cardBg: '#ffffff',
-    sidebarBg: '#0f172a',
+    sidebarBg: '#ffffff',
+    sidebarBorder: '#e5e7eb',
+    sidebarText: '#0f172a',
+    sidebarMuted: '#64748b',
+    sidebarMenuTheme: 'light',
     border: '#eef2f7',
     textPrimary: '#0f172a',
     textSecondary: '#64748b',
@@ -47,6 +56,10 @@ export const TOKENS: Record<Mode, Tokens> = {
     pageBg: '#0b1220',
     cardBg: '#111827',
     sidebarBg: '#0f172a',
+    sidebarBorder: '#1e293b',
+    sidebarText: '#f1f5f9',
+    sidebarMuted: '#64748b',
+    sidebarMenuTheme: 'dark',
     border: '#1f2937',
     textPrimary: '#f1f5f9',
     textSecondary: '#94a3b8',
