@@ -10,6 +10,7 @@ import KpiCard from '../../components/KpiCard.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { useFormatTokens } from '../../format.js';
+import { useStore } from '../../store.js';
 
 const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
   { label: '今天', value: 'today' }, { label: '本周', value: 'week' },
@@ -64,7 +65,7 @@ export default function SessionsList() {
   type SortBy = 'startedAt' | 'duration' | 'messageCount' | 'totalTokens' | 'totalCostUsd';
   const [sortBy, setSortBy] = useState<SortBy>('startedAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [source, setSource] = useState<'all' | 'claude' | 'codex'>('all');
+  const sourceFilter = useStore(s => s.sourceFilter);
   const [originator, setOriginator] = useState<string | null>(null);
 
   const projects = useQuery({
@@ -89,10 +90,10 @@ export default function SessionsList() {
     if (to) params.set('to', to);
     if (projectDirs.length) params.set('projectDir', projectDirs.join(','));
     if (providerSlugs.length) params.set('providers', providerSlugs.join(','));
-    if (source !== 'all') params.set('source', source);
+    if (sourceFilter !== 'all') params.set('source', sourceFilter);
     if (originator) params.set('originator', originator);
     return `/api/sessions?${params.toString()}`;
-  }, [page, pageSize, projectDirs, providerSlugs, range, sortBy, sortOrder, source, originator]);
+  }, [page, pageSize, projectDirs, providerSlugs, range, sortBy, sortOrder, sourceFilter, originator]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sessions', url],
@@ -144,16 +145,6 @@ export default function SessionsList() {
           options={(providers.data ?? []).map(p => ({
             label: p.displayName, value: p.slug,
           }))}
-        />
-        <span style={{ fontSize: 12, color: t.textSecondary }}>来源</span>
-        <Segmented
-          options={[
-            { label: '全部', value: 'all' },
-            { label: 'Claude', value: 'claude' },
-            { label: 'Codex', value: 'codex' },
-          ]}
-          value={source}
-          onChange={(v) => { setSource(v as 'all' | 'claude' | 'codex'); setPage(1); }}
         />
         <span style={{ fontSize: 12, color: t.textSecondary }}>发起方</span>
         <Select
