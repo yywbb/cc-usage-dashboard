@@ -9,6 +9,7 @@ import { openDb } from './db.js';
 import { scanAll } from './scanner/index.js';
 import { buildApp } from './app.js';
 import { defaultCodexHome } from './scanner/sources/codex/paths.js';
+import { createMonitor } from './monitor/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLAUDE_PROJECTS = join(homedir(), '.claude', 'projects');
@@ -51,7 +52,9 @@ program.command('start')
     const r = scanAll(db, CLAUDE_PROJECTS, { source });
     console.log(chalk.gray(`  ${r.scannedFiles} files, +${r.newMessages} messages`));
     const webDir = opts.dev ? undefined : resolve(__dirname, '../web');
-    const app = await buildApp({ db, projectsRoot: CLAUDE_PROJECTS, webDir });
+    const monitor = createMonitor(db, CLAUDE_PROJECTS);
+    monitor.reconfigure();
+    const app = await buildApp({ db, projectsRoot: CLAUDE_PROJECTS, webDir, monitor });
     const port = await listenWithRetry(app, Number(opts.port));
     const url = `http://localhost:${port}`;
     console.log(chalk.green(`✓ cc-usage-dashboard on ${url}`));

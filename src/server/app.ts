@@ -7,12 +7,15 @@ import { registerSessions } from './routes/sessions.js';
 import { registerCost } from './routes/cost.js';
 import { registerPricing } from './routes/pricing.js';
 import { registerCodex } from './routes/codex.js';
+import { registerMonitor } from './routes/monitor.js';
 import { registerStatic } from './staticServe.js';
+import type { Monitor } from './monitor/index.js';
 
 export interface AppDeps {
   db: DatabaseType;
   projectsRoot: string;
   webDir?: string;
+  monitor?: Monitor;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -24,6 +27,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerCost(app, deps.db);
   registerPricing(app, { db: deps.db });
   registerCodex(app, deps.db);
+  registerMonitor(app, { db: deps.db, monitor: deps.monitor });
   if (deps.webDir) await registerStatic(app, deps.webDir);
   return app;
 }

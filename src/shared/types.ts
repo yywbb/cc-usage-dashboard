@@ -172,3 +172,30 @@ export interface SessionsListResponse {
   items: SessionRow[];
   stats: SessionsListStats;
 }
+
+export interface MonitorRules {
+  /** Codex 5h primary window — fire when used_pct ≥ thresholdPct. */
+  codex5h:           { enabled: boolean; thresholdPct: number };
+  /** Codex 7d secondary window. */
+  codex7d:           { enabled: boolean; thresholdPct: number };
+  /** Today's Claude-only cost — fire when running cost ≥ thresholdUsd. */
+  todayCostClaude:   { enabled: boolean; thresholdUsd: number };
+  /** Today's Codex-only cost — fire when running cost ≥ thresholdUsd. */
+  todayCostCodex:    { enabled: boolean; thresholdUsd: number };
+}
+
+export interface MonitorConfig {
+  /** Master switch — when false, the interval scan is paused entirely. */
+  enabled:          boolean;
+  /** Scan + evaluate cadence in minutes. */
+  intervalMinutes:  number;
+  /** Suppress repeat alerts for the same rule for this long. */
+  cooldownMinutes:  number;
+  rules:            MonitorRules;
+}
+
+export interface MonitorAlert {
+  ruleId: keyof MonitorRules;
+  title:  string;
+  body:   string;
+}
