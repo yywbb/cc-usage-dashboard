@@ -2,18 +2,21 @@ import type { Database as DatabaseType } from 'better-sqlite3';
 import type { MonitorAlert, MonitorConfig } from '../../shared/types.js';
 
 interface LatestRateLimit {
-  primary:   number | null;
-  secondary: number | null;
+  primaryPct:   number | null;
+  secondaryPct: number | null;
 }
 
 function latestCodexRateLimit(db: DatabaseType): LatestRateLimit {
+  // `primary` / `secondary` are SQLite reserved words and can't be used as
+  // bare column aliases — quote-or-rename. Going with renamed aliases.
   const row = db.prepare(
-    `SELECT primary_used_pct as primary, secondary_used_pct as secondary
+    `SELECT primary_used_pct   as primaryPct,
+            secondary_used_pct as secondaryPct
      FROM codex_rate_limit_snapshots
      ORDER BY observed_at DESC
      LIMIT 1`,
   ).get() as LatestRateLimit | undefined;
-  return row ?? { primary: null, secondary: null };
+  return row ?? { primaryPct: null, secondaryPct: null };
 }
 
 function todayCostUsdBySource(db: DatabaseType, source: 'claude' | 'codex'): number {
@@ -54,19 +57,19 @@ export function evaluateRules(db: DatabaseType, cfg: MonitorConfig): MonitorAler
   if (cfg.rules.codex5h.enabled || cfg.rules.codex7d.enabled) {
     const rl = latestCodexRateLimit(db);
     const r5 = cfg.rules.codex5h;
-    if (r5.enabled && rl.primary != null && rl.primary >= r5.thresholdPct) {
+    if (r5.enabled && rl.primaryPct != null && rl.primaryPct >= r5.thresholdPct) {
       out.push({
         ruleId: 'codex5h',
         title:  'Codex 5h 限额告警',
-        body:   `当前 ${rl.primary.toFixed(1)}% ≥ 阈值 ${r5.thresholdPct}%`,
+        body:   `当前 ${rl.primaryPct.toFixed(1)}% ≥ 阈值 ${r5.thresholdPct}%`,
       });
     }
     const r7 = cfg.rules.codex7d;
-    if (r7.enabled && rl.secondary != null && rl.secondary >= r7.thresholdPct) {
+    if (r7.enabled && rl.secondaryPct != null && rl.secondaryPct >= r7.thresholdPct) {
       out.push({
         ruleId: 'codex7d',
         title:  'Codex 7d 限额告警',
-        body:   `当前 ${rl.secondary.toFixed(1)}% ≥ 阈值 ${r7.thresholdPct}%`,
+        body:   `当前 ${rl.secondaryPct.toFixed(1)}% ≥ 阈值 ${r7.thresholdPct}%`,
       });
     }
   }
