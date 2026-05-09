@@ -9,9 +9,25 @@ export interface ParsedMessage {
   outputTokens: number;
   cacheCreationTokens: number;
   cacheReadTokens: number;
+  reasoningTokens: number;        // NEW
   stopReason: string | null;
   toolNames: string[];
   textPreview: string | null;
+  source: 'claude' | 'codex';     // NEW
+  originator: string | null;      // NEW
+  cwdRealPath: string | null;     // NEW, Codex-specific; Claude passes null
+}
+
+export interface RateLimitSnapshot {
+  sessionId: string;
+  observedAt: number;
+  primaryUsedPct: number | null;
+  primaryWindowMin: number | null;
+  primaryResetsAt: number | null;
+  secondaryUsedPct: number | null;
+  secondaryWindowMin: number | null;
+  secondaryResetsAt: number | null;
+  planType: string | null;
 }
 
 export interface ScanResult {

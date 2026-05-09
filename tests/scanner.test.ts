@@ -64,4 +64,13 @@ describe('scanAll', () => {
       expect(second.newMessages).toBe(0);
     } finally { cleanup(); }
   });
+
+  it('marks Claude messages with source=claude', () => {
+    const { db, projectsRoot, cleanup } = setup();
+    try {
+      scanAll(db, projectsRoot, { source: 'claude' });
+      const r = db.prepare(`SELECT DISTINCT source FROM messages`).all() as Array<{ source: string }>;
+      expect(r).toEqual([{ source: 'claude' }]);
+    } finally { cleanup(); }
+  });
 });

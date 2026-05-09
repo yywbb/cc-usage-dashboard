@@ -24,14 +24,15 @@ export function insertMessages(
   msgs: ParsedMessage[],
 ): number {
   if (msgs.length === 0) return 0;
-  ensureSession(db, sessionId, projectDir);
+  ensureSession(db, sessionId, projectDir, msgs[0].source, msgs[0].cwdRealPath);
   const ctx = loadPriceCtx(db);
   const stmt = db.prepare(
     `INSERT OR IGNORE INTO messages
        (message_id, session_id, parent_uuid, role, model, timestamp,
         input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
-        cost_usd, stop_reason, tool_names, text_preview)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        reasoning_tokens, cost_usd, stop_reason, tool_names, text_preview,
+        source, originator)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const tx = db.transaction((rows: ParsedMessage[]) => {
     let inserted = 0;
@@ -45,13 +46,15 @@ export function insertMessages(
             outputTokens: m.outputTokens,
             cacheCreationTokens: m.cacheCreationTokens,
             cacheReadTokens: m.cacheReadTokens,
+            reasoningTokens: m.reasoningTokens,
           });
         }
       }
       const r = stmt.run(
         m.messageId, m.sessionId, m.parentUuid, m.role, m.model, m.timestamp,
         m.inputTokens, m.outputTokens, m.cacheCreationTokens, m.cacheReadTokens,
-        cost, m.stopReason, JSON.stringify(m.toolNames), m.textPreview,
+        m.reasoningTokens, cost, m.stopReason, JSON.stringify(m.toolNames), m.textPreview,
+        m.source, m.originator,
       );
       if (r.changes > 0) inserted++;
     }
@@ -60,13 +63,20 @@ export function insertMessages(
   return tx(msgs);
 }
 
-function ensureSession(db: DatabaseType, sessionId: string, projectDir: string): void {
+function ensureSession(
+  db: DatabaseType,
+  sessionId: string,
+  projectDir: string,
+  source: 'claude' | 'codex',
+  cwdRealPath: string | null,
+): void {
   db.prepare(
     `INSERT OR IGNORE INTO sessions
        (session_id, project_dir, started_at, ended_at,
-        message_count, total_input, total_output, total_cache_create, total_cache_read, total_cost_usd)
-     VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0, 0)`
-  ).run(sessionId, projectDir);
+        message_count, total_input, total_output, total_cache_create, total_cache_read,
+        total_reasoning, total_cost_usd, source, cwd_real_path)
+     VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?, ?)`
+  ).run(sessionId, projectDir, source, cwdRealPath);
 }
 
 export function recomputeSession(db: DatabaseType, sessionId: string): void {
@@ -78,6 +88,7 @@ export function recomputeSession(db: DatabaseType, sessionId: string): void {
             COALESCE(SUM(output_tokens), 0) as out_,
             COALESCE(SUM(cache_creation_tokens), 0) as cc,
             COALESCE(SUM(cache_read_tokens), 0) as cr,
+            COALESCE(SUM(reasoning_tokens), 0) as rs,
             COALESCE(SUM(cost_usd), 0) as cost
      FROM messages WHERE session_id = ?`
   ).get(sessionId) as any;
@@ -86,7 +97,7 @@ export function recomputeSession(db: DatabaseType, sessionId: string): void {
     `UPDATE sessions SET
        started_at = ?, ended_at = ?,
        message_count = ?, total_input = ?, total_output = ?,
-       total_cache_create = ?, total_cache_read = ?, total_cost_usd = ?
+       total_cache_create = ?, total_cache_read = ?, total_reasoning = ?, total_cost_usd = ?
      WHERE session_id = ?`
-  ).run(agg.started, agg.ended, agg.c, agg.in_, agg.out_, agg.cc, agg.cr, agg.cost, sessionId);
+  ).run(agg.started, agg.ended, agg.c, agg.in_, agg.out_, agg.cc, agg.cr, agg.rs, agg.cost, sessionId);
 }
