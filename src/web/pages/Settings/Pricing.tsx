@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Card, Table, Tag, Modal, Form, Input, InputNumber, DatePicker, Select,
-  Space, Empty, Alert, message, Row, Col,
+  Space, Empty, Alert, message, Row, Col, Dropdown, Button, Tooltip,
 } from 'antd';
+import { DownOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { api } from '../../api/client.js';
 import { useTheme } from '../../theme/useTheme.js';
@@ -47,6 +48,12 @@ const fmt = (n: number) =>
 export default function PricingSettings() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+
+  const priceCell = (n: number | undefined) =>
+    typeof n === 'number'
+      ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{n.toFixed(2)}</span>
+      : <span style={{ color: t.textMuted }}>—</span>;
+
   const qc = useQueryClient();
   const [providersOpen, setProvidersOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -171,52 +178,99 @@ export default function PricingSettings() {
           }}
           columns={[
             {
-              title: '供应商', dataIndex: 'providerSlug', width: 130,
-              render: (slug: string, row: ModelView) => slug === 'unknown'
-                ? <Tag color="warning">⚠ Unknown</Tag>
-                : <Tag color="processing">{row.providerDisplayName}</Tag>,
-            },
-            {
               title: '模型', dataIndex: 'modelName',
-              render: (v: string) => <span style={{ fontWeight: 500, color: t.textPrimary }}>{v}</span>,
-            },
-            {
-              title: '使用量', key: 'usage', width: 280,
-              render: (_: unknown, r: ModelView) => (
-                <span style={{ color: t.textSecondary, fontVariantNumeric: 'tabular-nums' }}>
-                  {r.messageCount.toLocaleString()} 条 · {fmt(r.totalTokens)} tokens · ${r.costUsd.toFixed(2)}
-                </span>
+              render: (v: string, row: ModelView) => (
+                <div>
+                  <div style={{ fontWeight: 500, color: t.textPrimary }}>{v}</div>
+                  {filter === 'all' && (
+                    <div style={{ fontSize: 12, color: t.textSecondary, marginTop: 2 }}>
+                      {row.providerSlug === 'unknown'
+                        ? <Tag color="warning" style={{ marginRight: 0 }}>⚠ Unknown</Tag>
+                        : row.providerDisplayName}
+                    </div>
+                  )}
+                </div>
               ),
             },
             {
-              title: '当前价 (input/output/cc/cr)', key: 'price', width: 280,
+              title: 'Input', key: 'input', width: 90, align: 'right',
+              sorter: (a, b) => (a.currentPrice?.input ?? -1) - (b.currentPrice?.input ?? -1),
+              render: (_: unknown, r: ModelView) => priceCell(r.currentPrice?.input),
+            },
+            {
+              title: 'Output', key: 'output', width: 90, align: 'right',
+              sorter: (a, b) => (a.currentPrice?.output ?? -1) - (b.currentPrice?.output ?? -1),
+              render: (_: unknown, r: ModelView) => priceCell(r.currentPrice?.output),
+            },
+            {
+              title: 'CC', key: 'cc', width: 80, align: 'right',
+              sorter: (a, b) => (a.currentPrice?.cacheCreate ?? -1) - (b.currentPrice?.cacheCreate ?? -1),
+              render: (_: unknown, r: ModelView) => priceCell(r.currentPrice?.cacheCreate),
+            },
+            {
+              title: 'CR', key: 'cr', width: 80, align: 'right',
+              sorter: (a, b) => (a.currentPrice?.cacheRead ?? -1) - (b.currentPrice?.cacheRead ?? -1),
+              render: (_: unknown, r: ModelView) => priceCell(r.currentPrice?.cacheRead),
+            },
+            {
+              title: '价格源', key: 'priceSource', width: 130,
               render: (_: unknown, r: ModelView) => {
                 if (!r.currentPrice) return <span style={{ color: t.danger }}>未配置</span>;
-                const tag = r.priceSource === 'default' ? '默认' : r.currentEffectiveFrom ?? '';
+                if (r.priceSource === 'default') return <Tag>默认</Tag>;
                 return (
-                  <Space size={6}>
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      ${r.currentPrice.input}/${r.currentPrice.output}/${r.currentPrice.cacheCreate}/${r.currentPrice.cacheRead}
-                    </span>
-                    <Tag color={r.priceSource === 'default' ? 'default' : 'green'}>{tag}</Tag>
-                  </Space>
+                  <Tag color="green" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    ⚡ {r.currentEffectiveFrom ?? ''}
+                  </Tag>
                 );
               },
             },
             {
-              title: '操作', key: 'actions', width: 200, align: 'right',
+              title: '使用量', key: 'usage', width: 200,
               render: (_: unknown, r: ModelView) => (
-                <Space size={6}>
-                  <Select<number>
-                    size="small"
-                    style={{ width: 140 }}
-                    disabled={moveMut.isPending}
-                    value={r.providerId}
-                    onChange={(pid) => moveMut.mutate({ model: r.modelName, providerId: pid })}
-                    options={(providers.data ?? []).map(p => ({ label: p.displayName, value: p.id }))}
-                  />
-                </Space>
+                <span style={{ color: t.textSecondary, fontVariantNumeric: 'tabular-nums' }}>
+                  {r.messageCount.toLocaleString()} 条 · {fmt(r.totalTokens)} tk · ${r.costUsd.toFixed(2)}
+                </span>
               ),
+            },
+            {
+              title: '操作', key: 'actions', width: 150, align: 'right',
+              render: (_: unknown, r: ModelView) => {
+                const transferItems = (providers.data ?? [])
+                  .filter(p => p.slug !== 'unknown' && p.id !== r.providerId)
+                  .map(p => ({ key: String(p.id), label: p.displayName }));
+
+                const onTransfer: NonNullable<React.ComponentProps<typeof Dropdown>['menu']>['onClick'] = ({ key }) => {
+                  moveMut.mutate({ model: r.modelName, providerId: Number(key) });
+                };
+
+                if (r.providerSlug === 'unknown') {
+                  return (
+                    <Dropdown
+                      menu={{ items: transferItems, onClick: onTransfer }}
+                      trigger={['click']}
+                      disabled={moveMut.isPending || transferItems.length === 0}
+                    >
+                      <Button size="small" type="primary">
+                        <Space size={4}>指派供应商 <DownOutlined /></Space>
+                      </Button>
+                    </Dropdown>
+                  );
+                }
+
+                return (
+                  <Space size={4}>
+                    <Dropdown
+                      menu={{ items: transferItems, onClick: onTransfer }}
+                      trigger={['click']}
+                      disabled={moveMut.isPending || transferItems.length === 0}
+                    >
+                      <Tooltip title="转移到其他供应商">
+                        <Button size="small" type="link">转移</Button>
+                      </Tooltip>
+                    </Dropdown>
+                  </Space>
+                );
+              },
             },
           ]}
         />
