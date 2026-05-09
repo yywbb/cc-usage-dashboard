@@ -75,3 +75,30 @@ describe('migration 003', () => {
     } finally { cleanup(); }
   });
 });
+
+describe('migration 004', () => {
+  it('migration 004 adds multi-source columns and backfills source=claude', () => {
+    const { path, cleanup } = tmpFile();
+    try {
+      const db = openDb(path);
+      // Insert a project first (required for foreign key)
+      db.prepare(
+        `INSERT INTO projects (project_dir, display_name, first_seen_at, last_seen_at) VALUES ('p1', 'proj1', 0, 0)`
+      ).run();
+      db.prepare(
+        `INSERT INTO sessions (session_id, project_dir, started_at, ended_at) VALUES ('s1','p1',0,0)`
+      ).run();
+      db.prepare(
+        `INSERT INTO messages (message_id, session_id, role, timestamp) VALUES ('m1','s1','user',0)`
+      ).run();
+      const cols = db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>;
+      expect(cols.map(c => c.name)).toEqual(
+        expect.arrayContaining(['source', 'reasoning_tokens', 'originator'])
+      );
+      const r = db.prepare(`SELECT source, reasoning_tokens FROM messages WHERE message_id='m1'`).get() as any;
+      expect(r.source).toBe('claude');
+      expect(r.reasoning_tokens).toBe(0);
+      db.close();
+    } finally { cleanup(); }
+  });
+});
