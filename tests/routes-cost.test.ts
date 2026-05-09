@@ -15,7 +15,7 @@ async function seeded() {
   const db = openDb(join(dir, 'usage.db'));
   scanAll(db, projectsRoot, { source: 'claude' });
   const app = await buildApp({ db, projectsRoot });
-  return { app, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { app, db, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 describe('/api/cost', () => {
@@ -28,6 +28,19 @@ describe('/api/cost', () => {
       expect(Array.isArray(body.anomalies)).toBe(true);
       expect(body.buckets[0]).toHaveProperty('bucketKey');
       expect(body.buckets[0]).toHaveProperty('costUsd');
+    } finally { await cleanup(); }
+  });
+
+  it('filters cost buckets by source=codex', async () => {
+    const { app, db, cleanup } = await seeded();
+    try {
+      db.prepare(`INSERT INTO projects (project_dir, display_name, real_path, first_seen_at, last_seen_at) VALUES ('codex:p','/p','/p',0,0)`).run();
+      db.prepare(`INSERT INTO sessions (session_id, project_dir, started_at, ended_at, source) VALUES ('s1','codex:p',1,2,'codex')`).run();
+      db.prepare(`INSERT INTO messages (message_id, session_id, role, model, timestamp, input_tokens, output_tokens, cost_usd, source) VALUES ('m1','s1','assistant','gpt-5',1, 100, 50, 3.0, 'codex')`).run();
+
+      const codex = (await app.inject({ method: 'GET', url: '/api/cost?granularity=day&source=codex' })).json();
+      const total = codex.buckets.reduce((a: number, b: any) => a + b.costUsd, 0);
+      expect(total).toBeCloseTo(3.0, 6);
     } finally { await cleanup(); }
   });
 });
