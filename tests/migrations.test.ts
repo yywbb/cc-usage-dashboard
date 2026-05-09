@@ -10,31 +10,46 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIG_001 = join(__dirname, '../src/server/migrations/001_init.sql');
 const MIG_002 = join(__dirname, '../src/server/migrations/002_pricing_overrides.sql');
 
-function tmpFile(): { path: string; cleanup: () => void } {
+function rmRetry(dir: string) {
+  for (let i = 0; i < 5; i++) {
+    try { rmSync(dir, { recursive: true, force: true }); return; } catch (e: any) {
+      if (e.code !== 'EBUSY' || i === 4) throw e;
+      // synchronous backoff for Windows WAL handle release (5 × 50ms = 250ms total)
+      const until = Date.now() + 50;
+      while (Date.now() < until) { /* spin */ }
+    }
+  }
+}
+
+function setup(): { path: string; db: ReturnType<typeof openDb>; cleanup: () => void } {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-mig-'));
+  const path = join(dir, 'usage.db');
+  const db = openDb(path);
+  return {
+    path,
+    db,
+    cleanup: () => { db.close(); rmRetry(dir); },
+  };
+}
+
+/** For tests that need to open the DB themselves (e.g. apply raw migrations first). */
+function tmpFile(): { path: string; dir: string; cleanup: (db?: ReturnType<typeof openDb>) => void } {
   const dir = mkdtempSync(join(tmpdir(), 'cc-mig-'));
   return {
     path: join(dir, 'usage.db'),
-    cleanup: () => {
-      for (let i = 0; i < 3; i++) {
-        try { rmSync(dir, { recursive: true, force: true }); return; } catch (e: any) {
-          if (e.code !== 'EBUSY' || i === 2) throw e;
-          // brief synchronous backoff for Windows WAL handle release
-          const until = Date.now() + 10;
-          while (Date.now() < until) { /* spin */ }
-        }
-      }
-    },
+    dir,
+    cleanup: (db?: ReturnType<typeof openDb>) => { if (db) db.close(); rmRetry(dir); },
   };
 }
 
 describe('migration 003', () => {
   it('on a fresh DB, creates the new tables and seeds builtin providers + Anthropic models', () => {
-    const { path, cleanup } = tmpFile();
+    const { db, cleanup } = setup();
     try {
-      const db = openDb(path);
       const provs = db.prepare(`SELECT slug, is_builtin FROM providers ORDER BY slug`).all();
       expect(provs).toEqual([
         { slug: 'anthropic', is_builtin: 1 },
+        { slug: 'openai', is_builtin: 1 },
         { slug: 'unknown', is_builtin: 1 },
       ]);
       const sonnet = db.prepare(
@@ -46,12 +61,12 @@ describe('migration 003', () => {
         `SELECT name FROM sqlite_master WHERE type='table' AND name='pricing_overrides'`,
       ).get();
       expect(oldExists).toBeUndefined();
-      db.close();
     } finally { cleanup(); }
   });
 
   it('migrates existing pricing_overrides rows into pricing with effective_from=1970-01-01', () => {
     const { path, cleanup } = tmpFile();
+    let db: ReturnType<typeof openDb> | undefined;
     try {
       // Apply only 001 + 002, then insert an override, then trigger 003 via openDb.
       const raw = new Database(path);
@@ -69,13 +84,8 @@ describe('migration 003', () => {
       raw.exec('PRAGMA optimize;');
       raw.exec('PRAGMA wal_checkpoint(RESTART);');
       raw.close();
-      // Small delay to allow SQLite WAL files to fully release on Windows
-      const until = Date.now() + 500;
-      while (Date.now() < until) {
-        /* spin */
-      }
 
-      const db = openDb(path); // runs 003 now
+      db = openDb(path); // runs 003 now
       const win = db.prepare(
         `SELECT effective_from, input, output, cache_create, cache_read, note
          FROM pricing WHERE model_name='claude-sonnet-4-6'`,
@@ -90,23 +100,14 @@ describe('migration 003', () => {
         `SELECT name FROM sqlite_master WHERE type='table' AND name='pricing_overrides'`,
       ).get();
       expect(oldExists).toBeUndefined();
-      db.exec('PRAGMA optimize;');
-      db.exec('PRAGMA wal_checkpoint(RESTART);');
-      db.close();
-      // Small delay to allow SQLite WAL files to fully release on Windows
-      const until2 = Date.now() + 250;
-      while (Date.now() < until2) {
-        /* spin */
-      }
-    } finally { cleanup(); }
+    } finally { cleanup(db); }
   });
 });
 
 describe('migration 004', () => {
   it('migration 004 adds multi-source columns and backfills source=claude', () => {
-    const { path, cleanup } = tmpFile();
+    const { db, cleanup } = setup();
     try {
-      const db = openDb(path);
       // Insert a project first (required for foreign key)
       db.prepare(
         `INSERT INTO projects (project_dir, display_name, first_seen_at, last_seen_at) VALUES ('p1', 'proj1', 0, 0)`
@@ -145,20 +146,16 @@ describe('migration 004', () => {
       const sessRow = db.prepare(`SELECT source, total_reasoning FROM sessions WHERE session_id='s1'`).get() as any;
       expect(sessRow.source).toBe('claude');
       expect(sessRow.total_reasoning).toBe(0);
-
-      db.close();
     } finally { cleanup(); }
   });
 });
 
 describe('migration 005', () => {
   it('migration 005 creates codex_rate_limit_snapshots', () => {
-    const { path, cleanup } = tmpFile();
+    const { db, cleanup } = setup();
     try {
-      const db = openDb(path);
       const tbls = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>;
       expect(tbls.map(t => t.name)).toContain('codex_rate_limit_snapshots');
-      db.close();
     } finally { cleanup(); }
   });
 });
