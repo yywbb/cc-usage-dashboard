@@ -9,6 +9,7 @@ import KpiCard from '../../components/KpiCard.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { useFormatTokens } from '../../format.js';
+import { useStore } from '../../store.js';
 
 function b64(p: string) { return btoa(p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
@@ -24,9 +25,10 @@ export default function ProjectsList() {
   const t = TOKENS[mode];
   const fmtTokens = useFormatTokens();
   const [sortBy, setSortBy] = useState<SortBy>('cost');
+  const sourceFilter = useStore(s => s.sourceFilter);
   const { data, isLoading } = useQuery({
-    queryKey: ['projects', sortBy],
-    queryFn: () => api.get<ProjectRow[]>(`/api/projects?sortBy=${sortBy}`),
+    queryKey: ['projects', sortBy, sourceFilter],
+    queryFn: () => api.get<ProjectRow[]>(`/api/projects?sortBy=${sortBy}${sourceFilter !== 'all' ? `&source=${sourceFilter}` : ''}`),
   });
   const rows = data ?? [];
   const maxCost = Math.max(...rows.map(r => r.totalCostUsd), 0);

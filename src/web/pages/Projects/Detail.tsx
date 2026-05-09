@@ -10,6 +10,7 @@ import TokenBreakdown from '../../components/TokenBreakdown.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { echartsThemeName, formatCompactNumber } from '../../theme/echarts.js';
 import { useFormatTokens } from '../../format.js';
+import { useStore } from '../../store.js';
 
 interface Timeline {
   daily: Array<{ date: string; tokens: number; costUsd: number; sessionCount: number }>;
@@ -31,9 +32,10 @@ export default function ProjectDetail() {
   const nav = useNavigate();
   const { mode } = useTheme();
   const fmtTokens = useFormatTokens();
+  const sourceFilter = useStore(s => s.sourceFilter);
   const { data } = useQuery({
-    queryKey: ['projectTimeline', b64],
-    queryFn: () => api.get<Timeline>(`/api/projects/${b64}/timeline?range=all`),
+    queryKey: ['projectTimeline', b64, sourceFilter],
+    queryFn: () => api.get<Timeline>(`/api/projects/${b64}/timeline?range=all${sourceFilter !== 'all' ? `&source=${sourceFilter}` : ''}`),
   });
 
   const projectName = b64 ? decodeB64(b64).split(/[/\\]/).pop() ?? b64 : '';

@@ -27,7 +27,7 @@ const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
 ];
 
 export default function Overview() {
-  const { range, setRange } = useStore();
+  const { range, setRange, sourceFilter } = useStore();
   const { mode } = useTheme();
   const t = TOKENS[mode];
 
@@ -37,11 +37,11 @@ export default function Overview() {
   const granularity: TrendGranularity = allowHour ? (granOverride ?? defaultGran) : 'day';
   useEffect(() => { setGranOverride(null); }, [range]);
 
-  const { data, isLoading } = useOverview(range, granularity);
+  const { data, isLoading } = useOverview(range, granularity, sourceFilter);
 
   const anomalies = useQuery<CostResponse>({
-    queryKey: ['cost', 'day', 'month'],
-    queryFn: () => api.get('/api/cost?granularity=day&range=month'),
+    queryKey: ['cost', 'day', 'month', sourceFilter],
+    queryFn: () => api.get(`/api/cost?granularity=day&range=month${sourceFilter !== 'all' ? `&source=${sourceFilter}` : ''}`),
     staleTime: 60_000,
   });
   const anomalyCount = anomalies.data?.anomalies.length ?? 0;

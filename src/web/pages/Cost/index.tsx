@@ -11,6 +11,7 @@ import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { echartsThemeName } from '../../theme/echarts.js';
 import { useFormatTokens } from '../../format.js';
+import { useStore } from '../../store.js';
 
 type Granularity = 'day' | 'week' | 'month';
 
@@ -22,10 +23,11 @@ export default function Cost() {
   const [q, setQ] = useState('');
   type Overlay = 'total' | 'ma' | 'cum';
   const [overlays, setOverlays] = useState<Overlay[]>(['total']);
+  const sourceFilter = useStore(s => s.sourceFilter);
 
   const { data } = useQuery({
-    queryKey: ['cost', gran],
-    queryFn: () => api.get<CostResponse>(`/api/cost?granularity=${gran}&range=all`),
+    queryKey: ['cost', gran, sourceFilter],
+    queryFn: () => api.get<CostResponse>(`/api/cost?granularity=${gran}&range=all${sourceFilter !== 'all' ? `&source=${sourceFilter}` : ''}`),
   });
 
   const buckets = data?.buckets ?? [];
