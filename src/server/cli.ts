@@ -9,39 +9,48 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { scanAll } from './scanner/index.js';
 import { buildApp } from './app.js';
+import { defaultCodexHome } from './scanner/sources/codex/paths.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLAUDE_PROJECTS = join(homedir(), '.claude', 'projects');
 const DB_PATH = join(homedir(), '.cc-usage', 'usage.db');
 
+type SourceArg = 'all' | 'claude' | 'codex';
+const VALID_SOURCES: ReadonlySet<SourceArg> = new Set(['all', 'claude', 'codex']);
+
+function parseSource(opt: string | undefined): SourceArg {
+  const v = (opt ?? 'all') as SourceArg;
+  if (!VALID_SOURCES.has(v)) throw new Error(`--source must be one of: all, claude, codex`);
+  return v;
+}
+
 const program = new Command();
 program.name('ccu').description('Claude Code usage dashboard').version('0.1.0');
 
-program.command('scan').action(async () => {
-  if (!existsSync(CLAUDE_PROJECTS)) {
-    console.error(chalk.red(`Not found: ${CLAUDE_PROJECTS}`));
-    process.exit(1);
-  }
-  const db = openDb(DB_PATH);
-  const t0 = Date.now();
-  const r = scanAll(db, CLAUDE_PROJECTS, { source: 'claude' });
-  console.log(chalk.green(
-    `Scanned ${r.scannedFiles} files, +${r.newMessages} messages in ${Date.now() - t0}ms`
-  ));
-  db.close();
-});
+program.command('scan')
+  .option('--source <s>', 'all | claude | codex', 'all')
+  .action(async (opts) => {
+    const source = parseSource(opts.source);
+    const db = openDb(DB_PATH);
+    const t0 = Date.now();
+    const r = scanAll(db, CLAUDE_PROJECTS, { source });
+    console.log(chalk.green(
+      `Scanned ${r.scannedFiles} files (${source}), +${r.newMessages} messages in ${Date.now() - t0}ms`,
+    ));
+    db.close();
+  });
 
 program.command('start')
   .option('-p, --port <port>', 'HTTP port', '47821')
   .option('--no-open', 'Do not auto-open browser')
   .option('--dev', 'Dev mode (no static serve)')
+  .option('--source <s>', 'Pre-scan source: all | claude | codex', 'all')
   .action(async (opts) => {
+    const source = parseSource(opts.source);
     const db = openDb(DB_PATH);
-    if (existsSync(CLAUDE_PROJECTS)) {
-      console.log(chalk.gray('Scanning…'));
-      const r = scanAll(db, CLAUDE_PROJECTS, { source: 'claude' });
-      console.log(chalk.gray(`  ${r.scannedFiles} files, +${r.newMessages} messages`));
-    }
+    console.log(chalk.gray(`Scanning (${source})…  Claude=${CLAUDE_PROJECTS}  Codex=${join(defaultCodexHome(), 'sessions')}`));
+    const r = scanAll(db, CLAUDE_PROJECTS, { source });
+    console.log(chalk.gray(`  ${r.scannedFiles} files, +${r.newMessages} messages`));
     const webDir = opts.dev ? undefined : resolve(__dirname, '../web');
     const app = await buildApp({ db, projectsRoot: CLAUDE_PROJECTS, webDir });
     const port = await listenWithRetry(app, Number(opts.port));
