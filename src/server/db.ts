@@ -2,7 +2,7 @@ import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { readFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { syncKnownAnthropicModels } from './seed.js';
+import { syncKnownModels } from './seed.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(__dirname, 'migrations');
@@ -13,7 +13,7 @@ export function openDb(dbPath: string): DatabaseType {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   applyMigrations(db);
-  syncKnownAnthropicModels(db);
+  syncKnownModels(db);
   return db;
 }
 

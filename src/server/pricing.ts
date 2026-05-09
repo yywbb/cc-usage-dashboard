@@ -12,6 +12,7 @@ export interface TokenCounts {
   outputTokens: number;
   cacheCreationTokens: number;
   cacheReadTokens: number;
+  reasoningTokens?: number;
 }
 
 export type PriceTable = Record<string, ModelPriceM>;
@@ -23,6 +24,12 @@ export const DEFAULT_PRICING_PER_M: PriceTable = {
   'claude-sonnet-4-6':          { input: 3, output: 15, cacheCreate: 3.75, cacheRead: 0.30 },
   'claude-haiku-4-5':           { input: 1, output:  5, cacheCreate: 1.25, cacheRead: 0.10 },
   'claude-haiku-4-5-20251001':  { input: 1, output:  5, cacheCreate: 1.25, cacheRead: 0.10 },
+  'gpt-5':                      { input: 1.25, output: 10,   cacheCreate: 0, cacheRead: 0.125 },
+  'gpt-5-codex':                { input: 1.25, output: 10,   cacheCreate: 0, cacheRead: 0.125 },
+  'gpt-5.3-codex':              { input: 1.25, output: 10,   cacheCreate: 0, cacheRead: 0.125 },
+  'gpt-5-mini':                 { input: 0.25, output: 2,    cacheCreate: 0, cacheRead: 0.025 },
+  'gpt-4.1':                    { input: 2,    output: 8,    cacheCreate: 0, cacheRead: 0.50  },
+  'o4-mini':                    { input: 1.10, output: 4.40, cacheCreate: 0, cacheRead: 0.275 },
 };
 
 const M = 1_000_000;
@@ -151,9 +158,10 @@ export function priceFor(ctx: PriceCtx, model: string, messageTimestampMs: numbe
 /** Apply a per-million price to token counts → USD cost. */
 export function applyPrice(price: ModelPriceM, t: TokenCounts): number {
   return (
-    (t.inputTokens         * price.input)       / M +
-    (t.outputTokens        * price.output)      / M +
-    (t.cacheCreationTokens * price.cacheCreate) / M +
-    (t.cacheReadTokens     * price.cacheRead)   / M
+    (t.inputTokens            * price.input)       / M +
+    (t.outputTokens           * price.output)      / M +
+    ((t.reasoningTokens ?? 0) * price.output)      / M +
+    (t.cacheCreationTokens    * price.cacheCreate) / M +
+    (t.cacheReadTokens        * price.cacheRead)   / M
   );
 }

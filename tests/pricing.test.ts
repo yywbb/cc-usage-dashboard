@@ -118,4 +118,41 @@ describe('applyPrice', () => {
     // 1M*3 + 100k*15/1M = 3 + 1.5 = 4.5
     expect(cost).toBeCloseTo(4.5, 6);
   });
+
+  it('applyPrice charges reasoning tokens at output rate', () => {
+    const price = { input: 1, output: 10, cacheCreate: 0, cacheRead: 0.1 };
+    const cost = applyPrice(price, {
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      reasoningTokens: 500_000,
+    });
+    expect(cost).toBeCloseTo(16, 6);
+  });
+
+  it('applyPrice tolerates missing reasoningTokens', () => {
+    const price = { input: 1, output: 10, cacheCreate: 0, cacheRead: 0 };
+    const cost = applyPrice(price, {
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+    });
+    expect(cost).toBeCloseTo(11, 6);
+  });
+});
+
+describe('syncKnownModels', () => {
+  it('registers openai provider and maps gpt-5 to it', () => {
+    const { db, cleanup } = makeDb();
+    try {
+      const provs = db.prepare(`SELECT slug FROM providers`).all() as Array<{ slug: string }>;
+      expect(provs.map(p => p.slug)).toEqual(expect.arrayContaining(['openai', 'anthropic', 'unknown']));
+      const m = db.prepare(
+        `SELECT p.slug FROM models JOIN providers p ON p.id = models.provider_id WHERE model_name='gpt-5'`,
+      ).get() as { slug: string };
+      expect(m.slug).toBe('openai');
+    } finally { cleanup(); }
+  });
 });
