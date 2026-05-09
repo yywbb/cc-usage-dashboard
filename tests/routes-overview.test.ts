@@ -15,7 +15,7 @@ async function seeded() {
   const db = openDb(join(dir, 'usage.db'));
   scanAll(db, projectsRoot, { source: 'claude' });
   const app = await buildApp({ db, projectsRoot });
-  return { app, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { app, db, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 describe('/api/overview', () => {
@@ -46,6 +46,28 @@ describe('/api/overview', () => {
       const firstBucket = body.dailyTrend[0];
       expect(firstBucket.byProvider).toBeDefined();
       expect(firstBucket.byProvider.anthropic).toBeGreaterThan(0);
+    } finally { await cleanup(); }
+  });
+
+  it('filters totals by source=codex', async () => {
+    const { app, db, cleanup } = await seeded();
+    try {
+      db.prepare(`INSERT INTO projects (project_dir, display_name, real_path, first_seen_at, last_seen_at) VALUES ('codex:abc','/p','/p',0,0)`).run();
+      db.prepare(`INSERT INTO sessions (session_id, project_dir, started_at, ended_at, source) VALUES ('s-cx','codex:abc',1,2,'codex')`).run();
+      db.prepare(
+        `INSERT INTO messages (message_id, session_id, role, model, timestamp,
+                                input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
+                                cost_usd, source)
+         VALUES ('m-cx','s-cx','assistant','gpt-5',1, 100, 50, 0, 0, 0.5, 'codex')`,
+      ).run();
+
+      const all = (await app.inject({ method: 'GET', url: '/api/overview?range=all' })).json();
+      const codex = (await app.inject({ method: 'GET', url: '/api/overview?range=all&source=codex' })).json();
+      const claude = (await app.inject({ method: 'GET', url: '/api/overview?range=all&source=claude' })).json();
+
+      expect(all.totals.messageCount).toBe(codex.totals.messageCount + claude.totals.messageCount);
+      expect(codex.totals.messageCount).toBe(1);
+      expect(codex.totals.costUsd).toBeCloseTo(0.5, 6);
     } finally { await cleanup(); }
   });
 });

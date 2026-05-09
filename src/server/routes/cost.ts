@@ -4,13 +4,18 @@ import type { CostResponse } from '../../shared/types.js';
 
 export function registerCost(app: FastifyInstance, db: DatabaseType) {
   app.get('/api/cost', async (req): Promise<CostResponse> => {
-    const q = req.query as { granularity?: 'day' | 'week' | 'month'; range?: string };
+    const q = req.query as { granularity?: 'day' | 'week' | 'month'; range?: string; source?: string };
     const granularity = q.granularity ?? 'day';
     const bucketExpr = {
       day:   `date(m.timestamp/1000,'unixepoch','localtime')`,
       week:  `strftime('%Y-W%W', m.timestamp/1000,'unixepoch','localtime')`,
       month: `strftime('%Y-%m',  m.timestamp/1000,'unixepoch','localtime')`,
     }[granularity];
+
+    const source = q.source && ['claude','codex'].includes(q.source) ? q.source : null;
+    const whereSrc = source ? `WHERE m.source = @source` : '';
+    const params: Record<string, any> = {};
+    if (source) params.source = source;
 
     const rows = db.prepare(
       `SELECT ${bucketExpr} as bucketKey, m.model,
@@ -20,9 +25,10 @@ export function registerCost(app: FastifyInstance, db: DatabaseType) {
        FROM messages m
        JOIN sessions s ON s.session_id = m.session_id
        JOIN projects p ON p.project_dir = s.project_dir
+       ${whereSrc}
        GROUP BY bucketKey, m.model, s.project_dir
        ORDER BY bucketKey`
-    ).all() as any[];
+    ).all(params) as any[];
 
     const buckets = new Map<string, {
       bucketKey: string; costUsd: number; tokens: number;

@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AppRoutes from './routes.js';
 import { api } from './api/client.js';
 import ThemeToggle from './components/ThemeToggle.js';
+import SourceToggle from './components/SourceToggle.js';
 import { RateLimitBadge } from './components/RateLimitBadge.js';
 import { usePageHeader } from './components/PageHeaderContext.js';
 import { useTheme } from './theme/useTheme.js';
@@ -90,6 +91,7 @@ export default function App() {
           <div ref={setContainer} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 24 }} />
           <div style={{ width: 1, height: 24, background: t.border }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SourceToggle />
             <RateLimitBadge />
             <ThemeToggle />
             <Button
