@@ -16,7 +16,7 @@ async function seeded() {
   const db = openDb(join(dir, 'usage.db'));
   scanAll(db, projectsRoot, { source: 'claude' });
   const app = await buildApp({ db, projectsRoot });
-  return { app, proj, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { app, db, proj, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 describe('/api/projects', () => {
@@ -39,6 +39,32 @@ describe('/api/projects', () => {
       const body = res.json();
       expect(body).toHaveProperty('daily');
       expect(body).toHaveProperty('topSessions');
+    } finally { await cleanup(); }
+  });
+
+  it('filters projects list by source=codex', async () => {
+    const { app, db, cleanup } = await seeded();
+    try {
+      db.prepare(`INSERT INTO projects (project_dir, display_name, real_path, first_seen_at, last_seen_at) VALUES ('codex:p','/p','/p',0,0)`).run();
+      db.prepare(`INSERT INTO sessions (session_id, project_dir, started_at, ended_at, source, total_input, total_output, total_cost_usd) VALUES ('s1','codex:p',0,0,'codex',100,50,1.0)`).run();
+      const codex = (await app.inject({ method: 'GET', url: '/api/projects?source=codex' })).json();
+      const claude = (await app.inject({ method: 'GET', url: '/api/projects?source=claude' })).json();
+      expect(codex.some((p: any) => p.projectDir === 'codex:p')).toBe(true);
+      expect(claude.some((p: any) => p.projectDir === 'codex:p')).toBe(false);
+      expect(codex.some((p: any) => p.projectDir === claude[0]?.projectDir)).toBe(false);
+    } finally { await cleanup(); }
+  });
+
+  it('filters project timeline detail by source=codex', async () => {
+    const { app, db, cleanup } = await seeded();
+    try {
+      db.prepare(`INSERT INTO projects (project_dir, display_name, real_path, first_seen_at, last_seen_at) VALUES ('codex:p','/p','/p',0,0)`).run();
+      db.prepare(`INSERT INTO sessions (session_id, project_dir, started_at, ended_at, source, total_cost_usd) VALUES ('s1','codex:p',1,2,'codex',2.0)`).run();
+      db.prepare(`INSERT INTO messages (message_id, session_id, role, model, timestamp, input_tokens, output_tokens, cost_usd, source) VALUES ('m1','s1','assistant','gpt-5',1,50,20,2.0,'codex')`).run();
+      const b64 = Buffer.from('codex:p', 'utf8').toString('base64url');
+      const res = await app.inject({ method: 'GET', url: `/api/projects/${b64}/timeline?source=codex` });
+      const body = res.json();
+      expect(body.totals.costUsd).toBeCloseTo(2.0, 6);
     } finally { await cleanup(); }
   });
 });
