@@ -4,6 +4,7 @@ import {
   DEFAULT_PRICING_PER_M, type Window,
 } from '../src/server/pricing.js';
 import { openDb } from '../src/server/db.js';
+import { syncKnownModels } from '../src/server/seed.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -153,6 +154,30 @@ describe('syncKnownModels', () => {
         `SELECT p.slug FROM models JOIN providers p ON p.id = models.provider_id WHERE model_name='gpt-5'`,
       ).get() as { slug: string };
       expect(m.slug).toBe('openai');
+    } finally { cleanup(); }
+  });
+
+  it('syncKnownModels reclassifies a known model previously stuck under unknown', () => {
+    const { db, cleanup } = makeDb();
+    try {
+      // Simulate the pre-upgrade state: a future scan once auto-created gpt-5.4
+      // under unknown (because it was not yet in DEFAULT_PRICING_PER_M when
+      // first encountered). Replicate that by manually moving it back to unknown.
+      const unknownId = (db.prepare(`SELECT id FROM providers WHERE slug='unknown'`).get() as { id: number }).id;
+      db.prepare(`UPDATE models SET provider_id = ? WHERE model_name = 'gpt-5.4'`).run(unknownId);
+      const before = db.prepare(
+        `SELECT p.slug FROM models JOIN providers p ON p.id = models.provider_id WHERE model_name='gpt-5.4'`,
+      ).get() as { slug: string };
+      expect(before.slug).toBe('unknown');
+
+      // Re-running syncKnownModels (as openDb does on every startup) must lift
+      // the model back to openai.
+      syncKnownModels(db);
+
+      const after = db.prepare(
+        `SELECT p.slug FROM models JOIN providers p ON p.id = models.provider_id WHERE model_name='gpt-5.4'`,
+      ).get() as { slug: string };
+      expect(after.slug).toBe('openai');
     } finally { cleanup(); }
   });
 });

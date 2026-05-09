@@ -27,7 +27,7 @@ describe('/api/providers', () => {
       expect(anthropic.modelCount).toBe(6); // seeded with DEFAULT_PRICING_PER_M (claude-opus-4-7, claude-opus-4-6, claude-opus-4-6-thinking, claude-sonnet-4-6, claude-haiku-4-5, claude-haiku-4-5-20251001)
       const openai = body.find(b => b.slug === 'openai')!;
       expect(openai.isBuiltin).toBe(1);
-      expect(openai.modelCount).toBe(6); // seeded with DEFAULT_PRICING_PER_M (gpt-5, gpt-5-codex, gpt-5.3-codex, gpt-5-mini, gpt-4.1, o4-mini)
+      expect(openai.modelCount).toBe(11); // seeded with DEFAULT_PRICING_PER_M (gpt-5, gpt-5-codex, gpt-5.2, gpt-5.2-codex, gpt-5.3-codex, gpt-5.4, gpt-5.5, gpt-5-mini, gpt-4.1, o4-mini, codex-auto-review)
       const unknown = body.find(b => b.slug === 'unknown')!;
       expect(unknown.isBuiltin).toBe(1);
       expect(unknown.modelCount).toBe(0); // catch-all for unregistered models, starts empty

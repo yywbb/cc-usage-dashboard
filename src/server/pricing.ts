@@ -26,10 +26,17 @@ export const DEFAULT_PRICING_PER_M: PriceTable = {
   'claude-haiku-4-5-20251001':  { input: 1, output:  5, cacheCreate: 1.25, cacheRead: 0.10 },
   'gpt-5':                      { input: 1.25, output: 10,   cacheCreate: 0, cacheRead: 0.125 },
   'gpt-5-codex':                { input: 1.25, output: 10,   cacheCreate: 0, cacheRead: 0.125 },
+  'gpt-5.2':                    { input: 1.75, output: 14,   cacheCreate: 0, cacheRead: 0.175 },
+  'gpt-5.2-codex':              { input: 1.75, output: 14,   cacheCreate: 0, cacheRead: 0.175 },
   'gpt-5.3-codex':              { input: 1.25, output: 10,   cacheCreate: 0, cacheRead: 0.125 },
+  'gpt-5.4':                    { input: 2.50, output: 15,   cacheCreate: 0, cacheRead: 0.25  },
+  'gpt-5.5':                    { input: 5,    output: 30,   cacheCreate: 0, cacheRead: 0.50  },
   'gpt-5-mini':                 { input: 0.25, output: 2,    cacheCreate: 0, cacheRead: 0.025 },
   'gpt-4.1':                    { input: 2,    output: 8,    cacheCreate: 0, cacheRead: 0.50  },
   'o4-mini':                    { input: 1.10, output: 4.40, cacheCreate: 0, cacheRead: 0.275 },
+  // codex-auto-review is a Codex internal routing label, not a public billable
+  // model (openai/codex#20981). Approximate at gpt-5 base rates.
+  'codex-auto-review':          { input: 1.25, output: 10,   cacheCreate: 0, cacheRead: 0.125 },
 };
 
 const M = 1_000_000;
