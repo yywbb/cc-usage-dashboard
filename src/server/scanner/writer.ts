@@ -63,7 +63,7 @@ export function insertMessages(
   return tx(msgs);
 }
 
-function ensureSession(
+export function ensureSession(
   db: DatabaseType,
   sessionId: string,
   projectDir: string,

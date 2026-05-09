@@ -6,7 +6,7 @@ import type { ScanResult } from '../../../../shared/types.js';
 import { defaultCodexHome, syntheticProjectDir } from './paths.js';
 import { parseCodexRollout } from './parser.js';
 import { getCursor, upsertCursor } from '../../cursor.js';
-import { insertMessages, recomputeSession, upsertCodexProject, upsertRateLimitSnapshot } from '../../writer.js';
+import { ensureSession, insertMessages, recomputeSession, upsertCodexProject, upsertRateLimitSnapshot } from '../../writer.js';
 
 export const codexSource: ScanSource = {
   id: 'codex',
@@ -34,6 +34,11 @@ export const codexSource: ScanSource = {
       const realPath = parsed.cwdRealPath ?? '(unknown)';
       const projectDir = syntheticProjectDir(realPath);
       upsertCodexProject(db, { projectDir, displayName: realPath, realPath });
+
+      // Ensure session row exists before any FK-bearing child rows (rate-limit
+      // snapshots can be present even when a session produced 0 token_count
+      // deltas, in which case insertMessages would not create the parent row).
+      ensureSession(db, parsed.sessionId, projectDir, 'codex', parsed.cwdRealPath);
 
       const added = insertMessages(db, projectDir, parsed.sessionId, parsed.messages);
       if (added > 0) {

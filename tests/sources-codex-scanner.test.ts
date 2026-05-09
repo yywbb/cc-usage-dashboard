@@ -56,4 +56,35 @@ describe('codexSource.scanAll', () => {
       expect(row.total).toBe(280);
     } finally { cleanup(); }
   });
+
+  it('records rate_limit snapshot even when session produced no token deltas', () => {
+    // Reproduces a real-world FK failure: rollout files can carry rate_limits
+    // without any monotonic token_count delta (e.g. session aborted early).
+    // The scanner must ensure the parent session row exists before upserting
+    // codex_rate_limit_snapshots, otherwise FOREIGN KEY constraint trips.
+    const dir = mkdtempSync(join(tmpdir(), 'cx-rl-'));
+    const root = join(dir, 'sessions', '2026', '04', '01');
+    mkdirSync(root, { recursive: true });
+    copyFileSync(
+      'tests/fixtures/codex/rate-limit-only.jsonl',
+      join(root, 'rollout-2026-04-01T10-00-00-test-sess-rl-only.jsonl'),
+    );
+    const db = openDb(join(dir, 'usage.db'));
+    try {
+      expect(() => codexSource.scanAll(db, join(dir, 'sessions'))).not.toThrow();
+      const sess = db.prepare(
+        `SELECT session_id, source FROM sessions WHERE session_id = 'test-sess-rl-only'`,
+      ).get() as any;
+      expect(sess?.source).toBe('codex');
+      const rl = db.prepare(
+        `SELECT primary_used_pct, plan_type FROM codex_rate_limit_snapshots
+         WHERE session_id = 'test-sess-rl-only'`,
+      ).get() as any;
+      expect(rl?.primary_used_pct).toBeCloseTo(5.0);
+      expect(rl?.plan_type).toBe('pro');
+    } finally {
+      db.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
