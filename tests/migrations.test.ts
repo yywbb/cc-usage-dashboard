@@ -10,19 +10,46 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIG_001 = join(__dirname, '../src/server/migrations/001_init.sql');
 const MIG_002 = join(__dirname, '../src/server/migrations/002_pricing_overrides.sql');
 
-function tmpFile(): { path: string; cleanup: () => void } {
+function rmRetry(dir: string) {
+  for (let i = 0; i < 5; i++) {
+    try { rmSync(dir, { recursive: true, force: true }); return; } catch (e: any) {
+      if (e.code !== 'EBUSY' || i === 4) throw e;
+      // synchronous backoff for Windows WAL handle release (5 × 50ms = 250ms total)
+      const until = Date.now() + 50;
+      while (Date.now() < until) { /* spin */ }
+    }
+  }
+}
+
+function setup(): { path: string; db: ReturnType<typeof openDb>; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'cc-mig-'));
-  return { path: join(dir, 'usage.db'), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  const path = join(dir, 'usage.db');
+  const db = openDb(path);
+  return {
+    path,
+    db,
+    cleanup: () => { db.close(); rmRetry(dir); },
+  };
+}
+
+/** For tests that need to open the DB themselves (e.g. apply raw migrations first). */
+function tmpFile(): { path: string; dir: string; cleanup: (db?: ReturnType<typeof openDb>) => void } {
+  const dir = mkdtempSync(join(tmpdir(), 'cc-mig-'));
+  return {
+    path: join(dir, 'usage.db'),
+    dir,
+    cleanup: (db?: ReturnType<typeof openDb>) => { if (db) db.close(); rmRetry(dir); },
+  };
 }
 
 describe('migration 003', () => {
   it('on a fresh DB, creates the new tables and seeds builtin providers + Anthropic models', () => {
-    const { path, cleanup } = tmpFile();
+    const { db, cleanup } = setup();
     try {
-      const db = openDb(path);
       const provs = db.prepare(`SELECT slug, is_builtin FROM providers ORDER BY slug`).all();
       expect(provs).toEqual([
         { slug: 'anthropic', is_builtin: 1 },
+        { slug: 'openai', is_builtin: 1 },
         { slug: 'unknown', is_builtin: 1 },
       ]);
       const sonnet = db.prepare(
@@ -34,12 +61,12 @@ describe('migration 003', () => {
         `SELECT name FROM sqlite_master WHERE type='table' AND name='pricing_overrides'`,
       ).get();
       expect(oldExists).toBeUndefined();
-      db.close();
     } finally { cleanup(); }
   });
 
   it('migrates existing pricing_overrides rows into pricing with effective_from=1970-01-01', () => {
     const { path, cleanup } = tmpFile();
+    let db: ReturnType<typeof openDb> | undefined;
     try {
       // Apply only 001 + 002, then insert an override, then trigger 003 via openDb.
       const raw = new Database(path);
@@ -54,9 +81,11 @@ describe('migration 003', () => {
         `INSERT INTO pricing_overrides (model, input, output, cache_create, cache_read, updated_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
       ).run('claude-sonnet-4-6', 6, 30, 7.5, 0.6, Date.now());
+      raw.exec('PRAGMA optimize;');
+      raw.exec('PRAGMA wal_checkpoint(RESTART);');
       raw.close();
 
-      const db = openDb(path); // runs 003 now
+      db = openDb(path); // runs 003 now
       const win = db.prepare(
         `SELECT effective_from, input, output, cache_create, cache_read, note
          FROM pricing WHERE model_name='claude-sonnet-4-6'`,
@@ -71,7 +100,62 @@ describe('migration 003', () => {
         `SELECT name FROM sqlite_master WHERE type='table' AND name='pricing_overrides'`,
       ).get();
       expect(oldExists).toBeUndefined();
-      db.close();
+    } finally { cleanup(db); }
+  });
+});
+
+describe('migration 004', () => {
+  it('migration 004 adds multi-source columns and backfills source=claude', () => {
+    const { db, cleanup } = setup();
+    try {
+      // Insert a project first (required for foreign key)
+      db.prepare(
+        `INSERT INTO projects (project_dir, display_name, first_seen_at, last_seen_at) VALUES ('p1', 'proj1', 0, 0)`
+      ).run();
+      db.prepare(
+        `INSERT INTO sessions (session_id, project_dir, started_at, ended_at) VALUES ('s1','p1',0,0)`
+      ).run();
+      db.prepare(
+        `INSERT INTO messages (message_id, session_id, role, timestamp) VALUES ('m1','s1','user',0)`
+      ).run();
+
+      // Assert messages columns
+      const msgCols = db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>;
+      expect(msgCols.map(c => c.name)).toEqual(
+        expect.arrayContaining(['source', 'reasoning_tokens', 'originator'])
+      );
+
+      // Assert sessions columns
+      const sessCols = db.prepare(`PRAGMA table_info(sessions)`).all() as Array<{ name: string }>;
+      expect(sessCols.map(c => c.name)).toEqual(
+        expect.arrayContaining(['source', 'total_reasoning', 'cwd_real_path'])
+      );
+
+      // Assert projects columns
+      const projCols = db.prepare(`PRAGMA table_info(projects)`).all() as Array<{ name: string }>;
+      expect(projCols.map(c => c.name)).toEqual(
+        expect.arrayContaining(['sources'])
+      );
+
+      // Assert messages data backfill
+      const msgRow = db.prepare(`SELECT source, reasoning_tokens FROM messages WHERE message_id='m1'`).get() as any;
+      expect(msgRow.source).toBe('claude');
+      expect(msgRow.reasoning_tokens).toBe(0);
+
+      // Assert sessions data backfill
+      const sessRow = db.prepare(`SELECT source, total_reasoning FROM sessions WHERE session_id='s1'`).get() as any;
+      expect(sessRow.source).toBe('claude');
+      expect(sessRow.total_reasoning).toBe(0);
+    } finally { cleanup(); }
+  });
+});
+
+describe('migration 005', () => {
+  it('migration 005 creates codex_rate_limit_snapshots', () => {
+    const { db, cleanup } = setup();
+    try {
+      const tbls = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>;
+      expect(tbls.map(t => t.name)).toContain('codex_rate_limit_snapshots');
     } finally { cleanup(); }
   });
 });

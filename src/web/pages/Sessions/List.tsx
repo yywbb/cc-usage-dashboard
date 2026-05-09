@@ -47,6 +47,11 @@ function hashColor(name: string): string {
   return palette[Math.abs(h) % palette.length];
 }
 
+const ORIGINATOR_OPTIONS = [
+  { value: 'codex_cli', label: 'CLI' },
+  { value: 'codex_vscode', label: 'VS Code' },
+];
+
 export default function SessionsList() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
@@ -59,6 +64,8 @@ export default function SessionsList() {
   type SortBy = 'startedAt' | 'duration' | 'messageCount' | 'totalTokens' | 'totalCostUsd';
   const [sortBy, setSortBy] = useState<SortBy>('startedAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [source, setSource] = useState<'all' | 'claude' | 'codex'>('all');
+  const [originator, setOriginator] = useState<string | null>(null);
 
   const projects = useQuery({
     queryKey: ['projects'],
@@ -82,8 +89,10 @@ export default function SessionsList() {
     if (to) params.set('to', to);
     if (projectDirs.length) params.set('projectDir', projectDirs.join(','));
     if (providerSlugs.length) params.set('providers', providerSlugs.join(','));
+    if (source !== 'all') params.set('source', source);
+    if (originator) params.set('originator', originator);
     return `/api/sessions?${params.toString()}`;
-  }, [page, pageSize, projectDirs, providerSlugs, range, sortBy, sortOrder]);
+  }, [page, pageSize, projectDirs, providerSlugs, range, sortBy, sortOrder, source, originator]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sessions', url],
@@ -136,6 +145,25 @@ export default function SessionsList() {
             label: p.displayName, value: p.slug,
           }))}
         />
+        <span style={{ fontSize: 12, color: t.textSecondary }}>来源</span>
+        <Segmented
+          options={[
+            { label: '全部', value: 'all' },
+            { label: 'Claude', value: 'claude' },
+            { label: 'Codex', value: 'codex' },
+          ]}
+          value={source}
+          onChange={(v) => { setSource(v as 'all' | 'claude' | 'codex'); setPage(1); }}
+        />
+        <span style={{ fontSize: 12, color: t.textSecondary }}>发起方</span>
+        <Select
+          allowClear
+          style={{ minWidth: 130 }}
+          placeholder="全部"
+          value={originator}
+          onChange={(v) => { setOriginator(v ?? null); setPage(1); }}
+          options={ORIGINATOR_OPTIONS}
+        />
       </div>
 
       <Table<SessionsListResponse['items'][number]>
@@ -187,6 +215,12 @@ export default function SessionsList() {
                 </Link>
               );
             },
+          },
+          {
+            title: 'Source', dataIndex: 'source', width: 90,
+            render: (v: string | null) => v === 'codex'
+              ? <Tag color="geekblue">Codex</Tag>
+              : <Tag color="purple">Claude</Tag>,
           },
           {
             title: '开始时间', dataIndex: 'startedAt', key: 'startedAt', width: 170,

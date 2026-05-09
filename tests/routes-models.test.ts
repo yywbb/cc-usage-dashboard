@@ -17,7 +17,7 @@ async function setup(seed = false) {
     mkdirSync(projectsRoot, { recursive: true });
   }
   const db = openDb(join(dir, 'usage.db'));
-  if (seed) scanAll(db, projectsRoot);
+  if (seed) scanAll(db, projectsRoot, { source: 'claude' });
   const app = await buildApp({ db, projectsRoot });
   return { app, db, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }

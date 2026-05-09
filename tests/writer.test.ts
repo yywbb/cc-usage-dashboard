@@ -23,9 +23,13 @@ const msg = (overrides: Partial<ParsedMessage>): ParsedMessage => ({
   outputTokens: 200,
   cacheCreationTokens: 0,
   cacheReadTokens: 0,
+  reasoningTokens: 0,
   stopReason: 'end_turn',
   toolNames: ['Read'],
   textPreview: 'hello',
+  source: 'claude',
+  originator: null,
+  cwdRealPath: null,
   ...overrides,
 });
 

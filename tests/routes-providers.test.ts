@@ -21,10 +21,16 @@ describe('/api/providers', () => {
       const res = await app.inject({ method: 'GET', url: '/api/providers' });
       const body = res.json() as Array<{ slug: string; isBuiltin: number; modelCount: number }>;
       const slugs = body.map(b => b.slug).sort();
-      expect(slugs).toEqual(['anthropic', 'unknown']);
+      expect(slugs).toEqual(['anthropic', 'openai', 'unknown']);
       const anthropic = body.find(b => b.slug === 'anthropic')!;
       expect(anthropic.isBuiltin).toBe(1);
-      expect(anthropic.modelCount).toBeGreaterThan(0); // seeded with DEFAULT_PRICING_PER_M
+      expect(anthropic.modelCount).toBe(6); // seeded with DEFAULT_PRICING_PER_M (claude-opus-4-7, claude-opus-4-6, claude-opus-4-6-thinking, claude-sonnet-4-6, claude-haiku-4-5, claude-haiku-4-5-20251001)
+      const openai = body.find(b => b.slug === 'openai')!;
+      expect(openai.isBuiltin).toBe(1);
+      expect(openai.modelCount).toBe(6); // seeded with DEFAULT_PRICING_PER_M (gpt-5, gpt-5-codex, gpt-5.3-codex, gpt-5-mini, gpt-4.1, o4-mini)
+      const unknown = body.find(b => b.slug === 'unknown')!;
+      expect(unknown.isBuiltin).toBe(1);
+      expect(unknown.modelCount).toBe(0); // catch-all for unregistered models, starts empty
     } finally { await cleanup(); }
   });
 

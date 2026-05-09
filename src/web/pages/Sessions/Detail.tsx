@@ -1,9 +1,10 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Table, Row, Col, Tag, Popover } from 'antd';
+import type { TableColumnsType } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import { api } from '../../api/client.js';
-import type { MessageRow } from '../../../shared/types.js';
+import type { MessageRow, SessionRateLimit } from '../../../shared/types.js';
 import PageHeader from '../../components/PageHeader.js';
 import KpiCard from '../../components/KpiCard.js';
 import TokenBreakdown, { computeCacheHitRate } from '../../components/TokenBreakdown.js';
@@ -16,9 +17,13 @@ interface Detail {
     sessionId: string; projectDir: string;
     startedAt: number; endedAt: number;
     messageCount: number; totalCostUsd: number;
+    source: string | null;
+    cwdRealPath: string | null;
+    totalReasoning: number;
   };
   messages: MessageRow[];
   toolDistribution: { tool: string; count: number; share: number }[];
+  rateLimit: SessionRateLimit | null;
 }
 
 function hashColor(name: string): string {
@@ -49,6 +54,56 @@ export default function SessionDetail() {
   const totalTokens = tokenTotals.inputTokens + tokenTotals.outputTokens + tokenTotals.cacheCreate + tokenTotals.cacheRead;
   const cacheHitRate = computeCacheHitRate(tokenTotals);
   const durationMin = Math.round((data.session.endedAt - data.session.startedAt) / 60000);
+  const isCodex = data.session.source === 'codex';
+
+  const messageColumns: TableColumnsType<MessageRow> = [
+    { title: '时间', dataIndex: 'timestamp', width: 110, render: (v) => new Date(v).toLocaleTimeString() },
+    {
+      title: 'role', dataIndex: 'role', width: 90,
+      render: (r: string) => <Tag color={r === 'assistant' ? 'blue' : 'default'}>{r}</Tag>,
+    },
+    {
+      title: 'model', dataIndex: 'model', width: 160,
+      render: (m: string | null) => m ? <Tag color="geekblue">{m}</Tag> : null,
+    },
+    {
+      title: 'input', dataIndex: 'inputTokens', align: 'right', width: 80,
+      render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
+    },
+    {
+      title: 'output', dataIndex: 'outputTokens', align: 'right', width: 80,
+      render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
+    },
+    ...(isCodex ? [{
+      title: 'reasoning',
+      dataIndex: 'reasoningTokens',
+      align: 'right' as const,
+      width: 90,
+      render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v ?? 0)}</span>,
+    }] : []),
+    {
+      title: 'cache-rd', dataIndex: 'cacheRead', align: 'right', width: 90,
+      render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
+    },
+    {
+      title: '$', dataIndex: 'costUsd', align: 'right', width: 90,
+      render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,
+    },
+    {
+      title: 'tools', dataIndex: 'toolNames',
+      render: (tools: string[]) => {
+        const shown = tools.slice(0, 3);
+        const rest = tools.length - shown.length;
+        return (
+          <>
+            {shown.map(t => <Tag key={t} color={hashColor(t)}>{t}</Tag>)}
+            {rest > 0 && <Tag>+{rest}</Tag>}
+          </>
+        );
+      },
+    },
+    { title: 'preview', dataIndex: 'textPreview', ellipsis: true },
+  ];
 
   return (
     <>
@@ -77,6 +132,22 @@ export default function SessionDetail() {
           <KpiCard title="缓存命中率" value={cacheHitRate * 100} precision={1} suffix="%" />
         </Col>
         <Col flex="1 1 0"><KpiCard title="成本" value={data.session.totalCostUsd} precision={4} suffix="$" /></Col>
+        {data.session.source === 'codex' && (
+          <Col flex="1 1 0">
+            <KpiCard title="Reasoning tokens" value={data.session.totalReasoning} formatter={fmtTokens} />
+          </Col>
+        )}
+        {data.rateLimit && (
+          <Col flex="1 1 0">
+            <KpiCard
+              title="Codex 5h / 7d"
+              value={0}
+              formatter={() =>
+                `${data.rateLimit!.primaryUsedPct?.toFixed(1) ?? '-'}% / ${data.rateLimit!.secondaryUsedPct?.toFixed(1) ?? '-'}%`
+              }
+            />
+          </Col>
+        )}
       </Row>
 
       <Row gutter={14} style={{ marginBottom: 16 }}>
@@ -148,47 +219,7 @@ export default function SessionDetail() {
             ),
             rowExpandable: (r) => !!r.textPreview,
           }}
-          columns={[
-            { title: '时间', dataIndex: 'timestamp', width: 110, render: (v) => new Date(v).toLocaleTimeString() },
-            {
-              title: 'role', dataIndex: 'role', width: 90,
-              render: (r: string) => <Tag color={r === 'assistant' ? 'blue' : 'default'}>{r}</Tag>,
-            },
-            {
-              title: 'model', dataIndex: 'model', width: 160,
-              render: (m: string | null) => m ? <Tag color="geekblue">{m}</Tag> : null,
-            },
-            {
-              title: 'input', dataIndex: 'inputTokens', align: 'right', width: 80,
-              render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
-            },
-            {
-              title: 'output', dataIndex: 'outputTokens', align: 'right', width: 80,
-              render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
-            },
-            {
-              title: 'cache-rd', dataIndex: 'cacheRead', align: 'right', width: 90,
-              render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
-            },
-            {
-              title: '$', dataIndex: 'costUsd', align: 'right', width: 90,
-              render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,
-            },
-            {
-              title: 'tools', dataIndex: 'toolNames',
-              render: (tools: string[]) => {
-                const shown = tools.slice(0, 3);
-                const rest = tools.length - shown.length;
-                return (
-                  <>
-                    {shown.map(t => <Tag key={t} color={hashColor(t)}>{t}</Tag>)}
-                    {rest > 0 && <Tag>+{rest}</Tag>}
-                  </>
-                );
-              },
-            },
-            { title: 'preview', dataIndex: 'textPreview', ellipsis: true },
-          ]}
+          columns={messageColumns}
         />
       </Card>
     </>

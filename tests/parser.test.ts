@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { parseJsonlLine } from '../src/server/scanner/parser.js';
+import { parseJsonlLine } from '../src/server/scanner/sources/claude/parser.js';
 
 const lines = readFileSync('tests/fixtures/session-sample.jsonl', 'utf8')
   .split('\n').filter(Boolean);

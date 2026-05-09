@@ -1,4 +1,4 @@
-import type { ParsedMessage } from '../../shared/types.js';
+import type { ParsedMessage } from '../../../../shared/types.js';
 
 const PREVIEW_LEN = 200;
 
@@ -50,8 +50,12 @@ export function parseJsonlLine(line: string, sessionId: string): ParsedMessage |
     outputTokens: Number(usage.output_tokens) || 0,
     cacheCreationTokens: Number(usage.cache_creation_input_tokens) || 0,
     cacheReadTokens: Number(usage.cache_read_input_tokens) || 0,
+    reasoningTokens: 0,
     stopReason: m.stop_reason ?? null,
     toolNames,
     textPreview,
+    source: 'claude',
+    originator: null,
+    cwdRealPath: null,
   };
 }

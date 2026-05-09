@@ -17,13 +17,14 @@ export async function registerAdmin(app: FastifyInstance, deps: AdminDeps) {
     return { ok: true, lastScanAt };
   });
 
-  app.post('/api/scan', async () => scanAll(deps.db, deps.projectsRoot));
+  app.post('/api/scan', async () => scanAll(deps.db, deps.projectsRoot, { source: 'all' }));
 
   app.post('/api/recompute-cost', async () => {
     const rows = deps.db.prepare(
       `SELECT message_id, model, timestamp,
               input_tokens, output_tokens,
-              cache_creation_tokens, cache_read_tokens
+              cache_creation_tokens, cache_read_tokens,
+              reasoning_tokens
        FROM messages WHERE model IS NOT NULL`,
     ).all() as Array<{
       message_id: string;
@@ -33,6 +34,7 @@ export async function registerAdmin(app: FastifyInstance, deps: AdminDeps) {
       output_tokens: number;
       cache_creation_tokens: number;
       cache_read_tokens: number;
+      reasoning_tokens: number;
     }>;
     const stmt = deps.db.prepare('UPDATE messages SET cost_usd = ? WHERE message_id = ?');
     const ctx = loadPriceCtx(deps.db);
@@ -47,6 +49,7 @@ export async function registerAdmin(app: FastifyInstance, deps: AdminDeps) {
             outputTokens: r.output_tokens,
             cacheCreationTokens: r.cache_creation_tokens,
             cacheReadTokens: r.cache_read_tokens,
+            reasoningTokens: r.reasoning_tokens,
           });
         } else {
           unconfiguredCount++;

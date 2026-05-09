@@ -14,7 +14,7 @@ async function seeded() {
   mkdirSync(proj, { recursive: true });
   copyFileSync('tests/fixtures/session-sample.jsonl', join(proj, 'sess-1.jsonl'));
   const db = openDb(join(dir, 'usage.db'));
-  scanAll(db, projectsRoot);
+  scanAll(db, projectsRoot, { source: 'claude' });
   const app = await buildApp({ db, projectsRoot });
   return { app, proj, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }

@@ -13,9 +13,9 @@ async function seeded() {
   mkdirSync(proj, { recursive: true });
   copyFileSync('tests/fixtures/session-sample.jsonl', join(proj, 'sess-1.jsonl'));
   const db = openDb(join(dir, 'usage.db'));
-  scanAll(db, projectsRoot);
+  scanAll(db, projectsRoot, { source: 'claude' });
   const app = await buildApp({ db, projectsRoot });
-  return { app, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
+  return { app, db, cleanup: async () => { await app.close(); db.close(); rmSync(dir, { recursive: true, force: true }); } };
 }
 
 describe('/api/sessions', () => {
@@ -72,6 +72,19 @@ describe('/api/sessions', () => {
         url: `/api/sessions?projectDir=${encodeURIComponent('/nonexistent/path')}`,
       });
       expect(missRes.json().total).toBe(0);
+    } finally { await cleanup(); }
+  });
+
+  it('filters sessions by source=codex', async () => {
+    const { app, db, cleanup } = await seeded();
+    try {
+      db.prepare(`INSERT INTO projects (project_dir, display_name, real_path, first_seen_at, last_seen_at)
+                  VALUES ('codex:abc','/p','/p',0,0)`).run();
+      db.prepare(`INSERT INTO sessions (session_id, project_dir, started_at, ended_at, source)
+                  VALUES ('s-cx','codex:abc',1,2,'codex')`).run();
+      const res = await app.inject({ method: 'GET', url: '/api/sessions?source=codex' });
+      const body = res.json();
+      expect(body.items.some((i: any) => i.sessionId === 's-cx')).toBe(true);
     } finally { await cleanup(); }
   });
 

@@ -22,7 +22,7 @@ describe('scanAll', () => {
   it('full scan creates project, session, messages', () => {
     const { db, projectsRoot, cleanup } = setup();
     try {
-      const result = scanAll(db, projectsRoot);
+      const result = scanAll(db, projectsRoot, { source: 'claude' });
       expect(result.scannedFiles).toBe(1);
       expect(result.newMessages).toBe(3);
       const sessions = db.prepare('SELECT * FROM sessions').all() as any[];
@@ -37,7 +37,7 @@ describe('scanAll', () => {
   it('incremental scan reads only appended bytes', () => {
     const { db, projectsRoot, projDir, cleanup } = setup();
     try {
-      scanAll(db, projectsRoot);
+      scanAll(db, projectsRoot, { source: 'claude' });
       const before = (db.prepare('SELECT COUNT(*) as n FROM messages').get() as any).n;
       const extraLine = JSON.stringify({
         uuid: 'a-3', sessionId: 'sess-1', parentUuid: 'a-2',
@@ -49,7 +49,7 @@ describe('scanAll', () => {
         }
       }) + '\n';
       appendFileSync(join(projDir, 'sess-1.jsonl'), extraLine);
-      const second = scanAll(db, projectsRoot);
+      const second = scanAll(db, projectsRoot, { source: 'claude' });
       expect(second.newMessages).toBe(1);
       const after = (db.prepare('SELECT COUNT(*) as n FROM messages').get() as any).n;
       expect(after).toBe(before + 1);
@@ -59,9 +59,18 @@ describe('scanAll', () => {
   it('skips file when size & mtime unchanged', () => {
     const { db, projectsRoot, cleanup } = setup();
     try {
-      scanAll(db, projectsRoot);
-      const second = scanAll(db, projectsRoot);
+      scanAll(db, projectsRoot, { source: 'claude' });
+      const second = scanAll(db, projectsRoot, { source: 'claude' });
       expect(second.newMessages).toBe(0);
+    } finally { cleanup(); }
+  });
+
+  it('marks Claude messages with source=claude', () => {
+    const { db, projectsRoot, cleanup } = setup();
+    try {
+      scanAll(db, projectsRoot, { source: 'claude' });
+      const r = db.prepare(`SELECT DISTINCT source FROM messages`).all() as Array<{ source: string }>;
+      expect(r).toEqual([{ source: 'claude' }]);
     } finally { cleanup(); }
   });
 });
