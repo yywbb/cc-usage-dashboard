@@ -4,7 +4,6 @@ import chalk from 'chalk';
 import open from 'open';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { scanAll } from './scanner/index.js';
