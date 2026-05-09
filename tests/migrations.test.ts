@@ -12,7 +12,19 @@ const MIG_002 = join(__dirname, '../src/server/migrations/002_pricing_overrides.
 
 function tmpFile(): { path: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'cc-mig-'));
-  return { path: join(dir, 'usage.db'), cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  return {
+    path: join(dir, 'usage.db'),
+    cleanup: () => {
+      for (let i = 0; i < 3; i++) {
+        try { rmSync(dir, { recursive: true, force: true }); return; } catch (e: any) {
+          if (e.code !== 'EBUSY' || i === 2) throw e;
+          // brief synchronous backoff for Windows WAL handle release
+          const until = Date.now() + 10;
+          while (Date.now() < until) { /* spin */ }
+        }
+      }
+    },
+  };
 }
 
 describe('migration 003', () => {
@@ -54,7 +66,14 @@ describe('migration 003', () => {
         `INSERT INTO pricing_overrides (model, input, output, cache_create, cache_read, updated_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
       ).run('claude-sonnet-4-6', 6, 30, 7.5, 0.6, Date.now());
+      raw.exec('PRAGMA optimize;');
+      raw.exec('PRAGMA wal_checkpoint(RESTART);');
       raw.close();
+      // Small delay to allow SQLite WAL files to fully release on Windows
+      const until = Date.now() + 500;
+      while (Date.now() < until) {
+        /* spin */
+      }
 
       const db = openDb(path); // runs 003 now
       const win = db.prepare(
@@ -71,7 +90,14 @@ describe('migration 003', () => {
         `SELECT name FROM sqlite_master WHERE type='table' AND name='pricing_overrides'`,
       ).get();
       expect(oldExists).toBeUndefined();
+      db.exec('PRAGMA optimize;');
+      db.exec('PRAGMA wal_checkpoint(RESTART);');
       db.close();
+      // Small delay to allow SQLite WAL files to fully release on Windows
+      const until2 = Date.now() + 250;
+      while (Date.now() < until2) {
+        /* spin */
+      }
     } finally { cleanup(); }
   });
 });
