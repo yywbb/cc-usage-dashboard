@@ -124,3 +124,15 @@ describe('migration 004', () => {
     } finally { cleanup(); }
   });
 });
+
+describe('migration 005', () => {
+  it('migration 005 creates codex_rate_limit_snapshots', () => {
+    const { path, cleanup } = tmpFile();
+    try {
+      const db = openDb(path);
+      const tbls = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>;
+      expect(tbls.map(t => t.name)).toContain('codex_rate_limit_snapshots');
+      db.close();
+    } finally { cleanup(); }
+  });
+});
