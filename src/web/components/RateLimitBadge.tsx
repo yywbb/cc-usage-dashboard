@@ -18,7 +18,6 @@ interface CurrentRateLimit {
   observedAt: number | null;
 }
 
-const fmtPct = (v: number | null | undefined) => v == null ? '-' : `${v.toFixed(1)}%`;
 const fmtReset = (v: number | null | undefined, compact = false) => {
   if (v == null) return '-';
   const d = new Date(v * 1000);
@@ -63,31 +62,20 @@ export function RateLimitGlance() {
           <InfoCircleOutlined style={{ fontSize: 12, color: t.textMuted }} />
         </Tooltip>
       </div>
-      <Tooltip
-        title={
-          <div>
-            <div>5h 剩余: {fmtPct(p5)} · 已用: {fmtPct(used5)}</div>
-            <div>7d 剩余: {fmtPct(p7)} · 已用: {fmtPct(used7)}</div>
-            <div>5h 重置: {fmtReset(data.primaryResetsAt, true)}</div>
-            <div>7d 重置: {fmtReset(data.secondaryResetsAt)}</div>
-          </div>
-        }
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-          <QuotaPanel
-            title="5 小时使用限额"
-            remaining={p5}
-            resetLabel={fmtReset(data.primaryResetsAt, true)}
-            t={t}
-          />
-          <QuotaPanel
-            title="每周使用限额"
-            remaining={p7}
-            resetLabel={fmtReset(data.secondaryResetsAt)}
-            t={t}
-          />
-        </div>
-      </Tooltip>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+        <QuotaPanel
+          title="5 小时使用限额"
+          remaining={p5}
+          resetLabel={fmtReset(data.primaryResetsAt, true)}
+          t={t}
+        />
+        <QuotaPanel
+          title="每周使用限额"
+          remaining={p7}
+          resetLabel={fmtReset(data.secondaryResetsAt)}
+          t={t}
+        />
+      </div>
     </div>
   );
 }
