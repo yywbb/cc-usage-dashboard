@@ -8,12 +8,39 @@ export function registerCodex(app: FastifyInstance, db: DatabaseType) {
     const row = db.prepare(
       `SELECT primary_used_pct   as primaryMaxPct,
               secondary_used_pct as secondaryMaxPct,
+              primary_resets_at  as primaryResetsAt,
+              secondary_resets_at as secondaryResetsAt,
               observed_at        as observedAt
        FROM codex_rate_limit_snapshots
        ORDER BY observed_at DESC
        LIMIT 1`,
-    ).get() as { primaryMaxPct: number | null; secondaryMaxPct: number | null; observedAt: number | null } | undefined;
-    return row ?? { primaryMaxPct: null, secondaryMaxPct: null, observedAt: null };
+    ).get() as {
+      primaryMaxPct: number | null;
+      secondaryMaxPct: number | null;
+      primaryResetsAt: number | null;
+      secondaryResetsAt: number | null;
+      observedAt: number | null;
+    } | undefined;
+    if (!row) {
+      return {
+        primaryMaxPct: null,
+        secondaryMaxPct: null,
+        primaryUsedPct: null,
+        secondaryUsedPct: null,
+        primaryRemainingPct: null,
+        secondaryRemainingPct: null,
+        primaryResetsAt: null,
+        secondaryResetsAt: null,
+        observedAt: null,
+      };
+    }
+    return {
+      ...row,
+      primaryUsedPct: row.primaryMaxPct,
+      secondaryUsedPct: row.secondaryMaxPct,
+      primaryRemainingPct: remainingPct(row.primaryMaxPct),
+      secondaryRemainingPct: remainingPct(row.secondaryMaxPct),
+    };
   });
 
   // 历史快照（折线图）
@@ -26,4 +53,9 @@ export function registerCodex(app: FastifyInstance, db: DatabaseType) {
        ORDER BY observed_at ASC`,
     ).all();
   });
+}
+
+function remainingPct(usedPct: number | null): number | null {
+  if (usedPct == null) return null;
+  return Math.max(0, Math.min(100, 100 - usedPct));
 }

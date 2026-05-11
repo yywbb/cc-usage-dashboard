@@ -25,7 +25,7 @@ function parseSource(opt: string | undefined): SourceArg {
 }
 
 const program = new Command();
-program.name('ccu').description('Claude Code usage dashboard').version('0.1.0');
+program.name('ccu').description('Claude Code usage dashboard').version('0.2.6');
 
 program.command('scan')
   .option('--source <s>', 'all | claude | codex', 'all')

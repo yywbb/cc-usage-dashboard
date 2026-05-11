@@ -18,7 +18,17 @@ describe('codex routes', () => {
     try {
       const res = await app.inject({ method: 'GET', url: '/api/codex/rate-limits/current' });
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ primaryMaxPct: null, secondaryMaxPct: null, observedAt: null });
+      expect(res.json()).toEqual({
+        primaryMaxPct: null,
+        secondaryMaxPct: null,
+        primaryUsedPct: null,
+        secondaryUsedPct: null,
+        primaryRemainingPct: null,
+        secondaryRemainingPct: null,
+        primaryResetsAt: null,
+        secondaryResetsAt: null,
+        observedAt: null,
+      });
     } finally { await cleanup(); }
   });
 
@@ -33,7 +43,11 @@ describe('codex routes', () => {
         (session_id, observed_at, primary_used_pct, secondary_used_pct, plan_type)
         VALUES ('s1', 100, 12.5, 22.0, 'pro')`).run();
       const res = await app.inject({ method: 'GET', url: '/api/codex/rate-limits/current' });
-      expect(res.json().primaryMaxPct).toBeCloseTo(12.5);
+      const body = res.json();
+      expect(body.primaryMaxPct).toBeCloseTo(12.5);
+      expect(body.primaryUsedPct).toBeCloseTo(12.5);
+      expect(body.primaryRemainingPct).toBeCloseTo(87.5);
+      expect(body.secondaryRemainingPct).toBeCloseTo(78);
     } finally { await cleanup(); }
   });
 

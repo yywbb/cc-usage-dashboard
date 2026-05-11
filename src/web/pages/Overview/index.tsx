@@ -18,6 +18,7 @@ import { api } from '../../api/client.js';
 import type { CostResponse, OverviewResponse, RangeKey, TrendGranularity } from '../../../shared/types.js';
 import { useFormatTokens } from '../../format.js';
 import ReactECharts from 'echarts-for-react';
+import type { SourceFilter } from '../../store.js';
 
 const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
   { label: '今天', value: 'today' },
@@ -75,6 +76,7 @@ export default function Overview() {
         <OverviewBody
           data={data} t={t} mode={mode} anomalyCount={anomalyCount}
           range={range}
+          sourceFilter={sourceFilter}
           granularity={granularity} allowHour={allowHour}
           onGranularityChange={(g) => setGranOverride(g)}
         />
@@ -97,13 +99,14 @@ function delta(curr: number, prev: number): number | null {
 }
 
 function OverviewBody({
-  data, t, mode, anomalyCount, range, granularity, allowHour, onGranularityChange,
+  data, t, mode, anomalyCount, range, sourceFilter, granularity, allowHour, onGranularityChange,
 }: {
   data: OverviewResponse;
   t: typeof TOKENS['light'];
   mode: 'light' | 'dark';
   anomalyCount: number;
   range: RangeKey;
+  sourceFilter: SourceFilter;
   granularity: TrendGranularity;
   allowHour: boolean;
   onGranularityChange: (g: TrendGranularity) => void;
@@ -253,8 +256,9 @@ function OverviewBody({
       </Row>
 
       <Row gutter={14} style={{ marginBottom: 18 }}>
-        <Col span={16}>
+        <Col span={16} style={{ display: 'flex' }}>
           <Card
+            style={{ flex: 1 }}
             title={
               trendMode === 'type'
                 ? 'Token 趋势 · 按类型堆叠'
@@ -288,8 +292,9 @@ function OverviewBody({
             }
           >
             <ReactECharts
-              key={`trend-${trendMode}-${granularity}`}
+              key={`trend-${sourceFilter}-${range}-${trendMode}-${granularity}`}
               theme={echartsThemeName(mode)}
+              notMerge
               style={{ height: 280 }}
               option={{
                 animation: false,
@@ -351,13 +356,20 @@ function OverviewBody({
             />
           </Card>
         </Col>
-        <Col span={8}>
-          <Card title="今日速览" extra={<span style={{ fontSize: 11, color: t.textSecondary }}>{lastDate}</span>}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <GlanceLine label="今日 tokens" value={fmtTokens(todayTokens)} t={t} />
-              <GlanceLine label="今日成本" value={`$${todayCost.toFixed(2)}`} t={t} />
-              <GlanceLine label="最活跃项目" value={topProject} emphasize t={t} />
-              <GlanceLine label="本月异常日" value={`${anomalyCount} 日`} danger={anomalyCount > 0} t={t} />
+        <Col span={8} style={{ display: 'flex' }}>
+          <Card
+            title="今日速览"
+            extra={<span style={{ fontSize: 11, color: t.textSecondary }}>{lastDate}</span>}
+            style={{ flex: 1 }}
+            bodyStyle={{ height: 'calc(100% - 57px)' }}
+          >
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <GlanceLine label="今日 tokens" value={fmtTokens(todayTokens)} t={t} />
+                <GlanceLine label="今日成本" value={`$${todayCost.toFixed(2)}`} t={t} />
+                <GlanceLine label="最活跃项目" value={topProject} emphasize t={t} />
+                <GlanceLine label="本月异常日" value={`${anomalyCount} 日`} danger={anomalyCount > 0} t={t} />
+              </div>
               <RateLimitGlance />
             </div>
           </Card>
