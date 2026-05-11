@@ -35,4 +35,41 @@ describe('parseJsonlLine', () => {
   it('returns null on JSON without expected shape', () => {
     expect(parseJsonlLine('{"random":"thing"}', 'sess-1')).toBeNull();
   });
+
+  it('skips Claude synthetic API error messages', () => {
+    const line = JSON.stringify({
+      uuid: 'err-1',
+      timestamp: '2026-04-20T10:00:15.000Z',
+      isApiErrorMessage: true,
+      message: {
+        id: 'err-msg-1',
+        role: 'assistant',
+        model: '<synthetic>',
+        content: [{ type: 'text', text: 'API Error: 429 rate limit' }],
+        usage: { input_tokens: 0, output_tokens: 0 },
+      },
+    });
+
+    expect(parseJsonlLine(line, 'sess-1')).toBeNull();
+  });
+
+  it('keeps non-error synthetic messages out of model accounting', () => {
+    const line = JSON.stringify({
+      uuid: 'synthetic-1',
+      timestamp: '2026-04-20T10:00:20.000Z',
+      isApiErrorMessage: false,
+      message: {
+        id: 'synthetic-msg-1',
+        role: 'assistant',
+        model: '<synthetic>',
+        content: [{ type: 'text', text: 'No response requested.' }],
+        usage: { input_tokens: 0, output_tokens: 0 },
+      },
+    });
+
+    const r = parseJsonlLine(line, 'sess-1');
+    expect(r).not.toBeNull();
+    expect(r!.model).toBeNull();
+    expect(r!.textPreview).toBe('No response requested.');
+  });
 });

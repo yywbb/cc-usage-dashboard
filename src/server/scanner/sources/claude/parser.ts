@@ -37,14 +37,21 @@ export function parseJsonlLine(line: string, sessionId: string): ParsedMessage |
     textPreview = m.content.slice(0, PREVIEW_LEN);
   }
 
+  if (isApiErrorMessage(obj, m, textPreview)) {
+    return null;
+  }
+
   const messageId: string = m.id ?? obj.uuid ?? `${sessionId}:${timestamp}`;
+  const model = typeof m.model === 'string' && m.model !== '<synthetic>'
+    ? m.model
+    : null;
 
   return {
     messageId,
     sessionId,
     parentUuid: obj.parentUuid ?? null,
     role,
-    model: m.model ?? null,
+    model,
     timestamp,
     inputTokens: Number(usage.input_tokens) || 0,
     outputTokens: Number(usage.output_tokens) || 0,
@@ -58,4 +65,13 @@ export function parseJsonlLine(line: string, sessionId: string): ParsedMessage |
     originator: null,
     cwdRealPath: null,
   };
+}
+
+function isApiErrorMessage(obj: any, m: any, textPreview: string | null): boolean {
+  if (obj.isApiErrorMessage === true) return true;
+  if (m.model !== '<synthetic>' || !textPreview) return false;
+  return textPreview.startsWith('API Error:')
+    || textPreview.includes(' API Error:')
+    || textPreview.includes('· API Error:')
+    || textPreview.startsWith("You've hit your limit");
 }

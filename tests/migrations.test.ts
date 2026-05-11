@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
 import { openDb } from '../src/server/db.js';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const MIG_DIR = join(__dirname, '../src/server/migrations');
 const MIG_001 = join(__dirname, '../src/server/migrations/001_init.sql');
 const MIG_002 = join(__dirname, '../src/server/migrations/002_pricing_overrides.sql');
 
@@ -157,5 +158,63 @@ describe('migration 005', () => {
       const tbls = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{ name: string }>;
       expect(tbls.map(t => t.name)).toContain('codex_rate_limit_snapshots');
     } finally { cleanup(); }
+  });
+});
+
+describe('migration 007', () => {
+  it('removes Claude API-error synthetic rows and clears remaining synthetic models', () => {
+    const { path, cleanup } = tmpFile();
+    let db: ReturnType<typeof openDb> | undefined;
+    try {
+      const raw = new Database(path);
+      raw.exec(`CREATE TABLE _migrations (name TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)`);
+      const prior = readdirSync(MIG_DIR)
+        .filter(f => f.endsWith('.sql') && f < '007_ignore_claude_synthetic_errors.sql')
+        .sort();
+      for (const f of prior) {
+        raw.exec(readFileSync(join(MIG_DIR, f), 'utf8'));
+        raw.prepare(`INSERT INTO _migrations(name, applied_at) VALUES (?, ?)`).run(f, Date.now());
+      }
+
+      raw.prepare(
+        `INSERT INTO projects (project_dir, display_name, first_seen_at, last_seen_at)
+         VALUES ('p1', 'proj1', 0, 0)`,
+      ).run();
+      raw.prepare(
+        `INSERT INTO sessions
+           (session_id, project_dir, started_at, ended_at, message_count,
+            total_input, total_output, total_cache_create, total_cache_read,
+            total_reasoning, total_cost_usd, source)
+         VALUES ('s1', 'p1', 1, 2, 2, 0, 0, 0, 0, 0, 0, 'claude')`,
+      ).run();
+      const unknown = raw.prepare(`SELECT id FROM providers WHERE slug='unknown'`).get() as { id: number };
+      raw.prepare(
+        `INSERT INTO models (model_name, provider_id, created_at, updated_at)
+         VALUES ('<synthetic>', ?, 0, 0)`,
+      ).run(unknown.id);
+      raw.prepare(
+        `INSERT INTO messages
+           (message_id, session_id, role, model, timestamp,
+            input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
+            cost_usd, text_preview, source, reasoning_tokens)
+         VALUES
+           ('err', 's1', 'assistant', '<synthetic>', 10, 0, 0, 0, 0, 0,
+            'API Error: 429 rate limit', 'claude', 0),
+           ('note', 's1', 'assistant', '<synthetic>', 20, 0, 0, 0, 0, 0,
+            'No response requested.', 'claude', 0)`,
+      ).run();
+      raw.close();
+
+      db = openDb(path);
+
+      expect(db.prepare(`SELECT message_id FROM messages ORDER BY message_id`).all())
+        .toEqual([{ message_id: 'note' }]);
+      expect(db.prepare(`SELECT model FROM messages WHERE message_id='note'`).get())
+        .toEqual({ model: null });
+      expect(db.prepare(`SELECT model_name FROM models WHERE model_name='<synthetic>'`).get())
+        .toBeUndefined();
+      expect(db.prepare(`SELECT message_count, started_at, ended_at FROM sessions WHERE session_id='s1'`).get())
+        .toEqual({ message_count: 1, started_at: 20, ended_at: 20 });
+    } finally { cleanup(db); }
   });
 });
