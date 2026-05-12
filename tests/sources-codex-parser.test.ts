@@ -63,4 +63,18 @@ describe('parseCodexRollout', () => {
     expect(Number.isFinite(m.outputTokens)).toBe(true);
     expect(Number.isFinite(m.cacheReadTokens)).toBe(true);
   });
+
+  it('marks non-null Codex rate limit events as failed responses', () => {
+    const out = parseCodexRollout([
+      `{"timestamp":"2026-04-01T10:00:00.000Z","type":"session_meta","payload":{"id":"test-sess-rate-limited","cwd":"/p","originator":"codex_cli"}}`,
+      `{"timestamp":"2026-04-01T10:00:01.000Z","type":"turn_context","payload":{"model":"gpt-5-codex"}}`,
+      `{"timestamp":"2026-04-01T10:00:02.000Z","type":"event_msg","payload":{"type":"token_count","info":null,"rate_limits":{"primary":{"used_percent":100,"window_minutes":300,"resets_at":1781000000},"rate_limit_reached_type":"primary","plan_type":"pro"}}}`,
+    ].join('\n'));
+
+    expect(out.messages).toHaveLength(1);
+    expect(out.messages[0].model).toBeNull();
+    expect(out.messages[0].responseError).toBe(true);
+    expect(out.messages[0].stopReason).toBe('primary');
+    expect(out.messages[0].textPreview).toContain('Codex rate limit reached');
+  });
 });

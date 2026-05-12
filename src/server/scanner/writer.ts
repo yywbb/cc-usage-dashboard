@@ -27,12 +27,12 @@ export function insertMessages(
   ensureSession(db, sessionId, projectDir, msgs[0].source, msgs[0].cwdRealPath);
   const ctx = loadPriceCtx(db);
   const stmt = db.prepare(
-    `INSERT OR IGNORE INTO messages
+     `INSERT OR IGNORE INTO messages
        (message_id, session_id, parent_uuid, role, model, timestamp,
         input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
         reasoning_tokens, cost_usd, stop_reason, tool_names, text_preview,
-        source, originator)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        source, originator, response_error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const tx = db.transaction((rows: ParsedMessage[]) => {
     let inserted = 0;
@@ -54,7 +54,7 @@ export function insertMessages(
         m.messageId, m.sessionId, m.parentUuid, m.role, m.model, m.timestamp,
         m.inputTokens, m.outputTokens, m.cacheCreationTokens, m.cacheReadTokens,
         m.reasoningTokens, cost, m.stopReason, JSON.stringify(m.toolNames), m.textPreview,
-        m.source, m.originator,
+        m.source, m.originator, m.responseError ? 1 : 0,
       );
       if (r.changes > 0) inserted++;
     }

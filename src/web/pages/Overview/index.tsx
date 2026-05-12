@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Row, Col, Card, Spin, Segmented, Popover, Space, Table } from 'antd';
 import { Link } from 'react-router-dom';
-import { ThunderboltOutlined, DollarOutlined, MessageOutlined, ApiOutlined } from '@ant-design/icons';
+import { ThunderboltOutlined, DollarOutlined, MessageOutlined, ApiOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useOverview } from '../../hooks/useOverview.js';
 import { useStore } from '../../store.js';
@@ -123,6 +123,7 @@ function OverviewBody({
   const costDelta    = prev ? delta(data.totals.costUsd, prev.costUsd)   : null;
   const sessionDelta = prev ? delta(data.totals.sessionCount, prev.sessionCount) : null;
   const hitRateDelta = prev ? delta(data.cacheHitRate, prev.cacheHitRate) : null;
+  const responseSuccessDelta = prev ? delta(data.totals.responseSuccessRate, prev.responseSuccessRate) : null;
   // dailyTrend.byModel values are per-model totals of (input+output+cache*) — summing them yields the bucket total.
   const bucketTotal = (d: OverviewResponse['dailyTrend'][number]) =>
     Object.values(d.byModel).reduce((a, v) => a + v, 0);
@@ -210,7 +211,7 @@ function OverviewBody({
   return (
     <>
       <Row gutter={14} style={{ marginBottom: 18 }}>
-        <Col span={6}>
+        <Col flex="1 1 0">
           <Popover
             placement="bottomLeft"
             mouseEnterDelay={0.15}
@@ -234,20 +235,26 @@ function OverviewBody({
             </div>
           </Popover>
         </Col>
-        <Col span={6}><KpiCard
+        <Col flex="1 1 0"><KpiCard
           title="总成本" value={data.totals.costUsd} precision={2} suffix="$"
           icon={<DollarOutlined />}
           iconBg={mode === 'dark' ? '#3b2e10' : '#fef3c7'} iconColor="#d97706"
           sparkline={costSpark} sparkColor="#d97706"
           delta={costDelta} deltaLabel={deltaLabel}
         /></Col>
-        <Col span={6}><KpiCard
+        <Col flex="1 1 0"><KpiCard
           title="会话数" value={data.totals.sessionCount}
           icon={<MessageOutlined />}
           iconBg={mode === 'dark' ? '#10321f' : '#dcfce7'} iconColor="#16a34a"
           delta={sessionDelta} deltaLabel={deltaLabel}
         /></Col>
-        <Col span={6}><KpiCard
+        <Col flex="1 1 0"><KpiCard
+          title="响应成功率" value={data.totals.responseSuccessRate * 100} precision={1} suffix="%"
+          icon={<CheckCircleOutlined />}
+          iconBg={mode === 'dark' ? '#12322c' : '#ccfbf1'} iconColor="#0f766e"
+          delta={responseSuccessDelta} deltaLabel={deltaLabel}
+        /></Col>
+        <Col flex="1 1 0"><KpiCard
           title="缓存命中率" value={data.cacheHitRate * 100} precision={1} suffix="%"
           icon={<ApiOutlined />}
           iconBg={mode === 'dark' ? '#3a1622' : '#ffe4e6'} iconColor="#e11d48"

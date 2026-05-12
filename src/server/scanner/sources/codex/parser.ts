@@ -68,6 +68,31 @@ export function parseCodexRollout(content: string): CodexFileResult {
       };
     }
 
+    const rateLimitReachedType = rl?.rate_limit_reached_type;
+    if (typeof rateLimitReachedType === 'string' && rateLimitReachedType.length > 0) {
+      messages.push({
+        messageId: `${sessionId}:${ev.timestamp}:rate_limit`,
+        sessionId,
+        parentUuid: null,
+        role: 'assistant',
+        model: null,
+        timestamp: Date.parse(ev.timestamp),
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        reasoningTokens: 0,
+        stopReason: rateLimitReachedType,
+        toolNames: [],
+        textPreview: `Codex rate limit reached: ${rateLimitReachedType}`.slice(0, PREVIEW_LEN),
+        source: 'codex',
+        originator,
+        cwdRealPath,
+        responseError: true,
+      });
+      continue;
+    }
+
     if (!cur) continue;
     if (cur.total_tokens <= prev.total) continue;
 
@@ -94,6 +119,7 @@ export function parseCodexRollout(content: string): CodexFileResult {
       source: 'codex',
       originator,
       cwdRealPath,
+      responseError: false,
     });
 
     prev = {

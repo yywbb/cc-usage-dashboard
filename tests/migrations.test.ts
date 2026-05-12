@@ -218,3 +218,33 @@ describe('migration 007', () => {
     } finally { cleanup(db); }
   });
 });
+
+describe('migration 008', () => {
+  it('adds response_error and resets scan cursors for one full rescan', () => {
+    const { path, cleanup } = tmpFile();
+    let db: ReturnType<typeof openDb> | undefined;
+    try {
+      const raw = new Database(path);
+      raw.exec(`CREATE TABLE _migrations (name TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)`);
+      const prior = readdirSync(MIG_DIR)
+        .filter(f => f.endsWith('.sql') && f < '008_response_success_rate.sql')
+        .sort();
+      for (const f of prior) {
+        raw.exec(readFileSync(join(MIG_DIR, f), 'utf8'));
+        raw.prepare(`INSERT INTO _migrations(name, applied_at) VALUES (?, ?)`).run(f, Date.now());
+      }
+      raw.prepare(
+        `INSERT INTO scan_cursor
+           (file_path, project_dir, size_bytes, mtime_ms, last_offset, last_scanned_at)
+         VALUES ('f.jsonl', 'p1', 100, 1000, 100, 1000)`,
+      ).run();
+      raw.close();
+
+      db = openDb(path);
+
+      const cols = db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>;
+      expect(cols.map(c => c.name)).toContain('response_error');
+      expect(db.prepare(`SELECT COUNT(*) AS n FROM scan_cursor`).get()).toEqual({ n: 0 });
+    } finally { cleanup(db); }
+  });
+});

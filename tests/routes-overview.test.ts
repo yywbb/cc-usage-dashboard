@@ -30,6 +30,30 @@ describe('/api/overview', () => {
       expect(body.byModel.length).toBeGreaterThan(0);
       expect(body.byProject.length).toBe(1);
       expect(typeof body.cacheHitRate).toBe('number');
+      expect(body.totals.successfulResponses).toBe(2);
+      expect(body.totals.failedResponses).toBe(0);
+      expect(body.totals.responseAttempts).toBe(2);
+      expect(body.totals.responseSuccessRate).toBe(1);
+    } finally { await cleanup(); }
+  });
+
+  it('counts Claude API-error rows as failed response attempts', async () => {
+    const { app, db, cleanup } = await seeded();
+    try {
+      db.prepare(
+        `INSERT INTO messages (message_id, session_id, role, model, timestamp,
+                                input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
+                                cost_usd, text_preview, source, response_error)
+         VALUES ('m-fail','sess-1','assistant',NULL,3, 0, 0, 0, 0, 0,
+                 'API Error: 429 rate limit', 'claude', 1)`,
+      ).run();
+
+      const body = (await app.inject({ method: 'GET', url: '/api/overview?range=all' })).json();
+
+      expect(body.totals.successfulResponses).toBe(2);
+      expect(body.totals.failedResponses).toBe(1);
+      expect(body.totals.responseAttempts).toBe(3);
+      expect(body.totals.responseSuccessRate).toBeCloseTo(2 / 3, 6);
     } finally { await cleanup(); }
   });
 

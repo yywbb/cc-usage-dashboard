@@ -37,11 +37,8 @@ export function parseJsonlLine(line: string, sessionId: string): ParsedMessage |
     textPreview = m.content.slice(0, PREVIEW_LEN);
   }
 
-  if (isApiErrorMessage(obj, m, textPreview)) {
-    return null;
-  }
-
   const messageId: string = m.id ?? obj.uuid ?? `${sessionId}:${timestamp}`;
+  const responseError = isApiErrorMessage(obj, m, textPreview);
   const model = typeof m.model === 'string' && m.model !== '<synthetic>'
     ? m.model
     : null;
@@ -64,6 +61,7 @@ export function parseJsonlLine(line: string, sessionId: string): ParsedMessage |
     source: 'claude',
     originator: null,
     cwdRealPath: null,
+    responseError,
   };
 }
 

@@ -51,9 +51,13 @@ function computeOverview(
             COALESCE(SUM(cache_read_tokens),0) as cr,
             COALESCE(SUM(cost_usd),0) as cost,
             COUNT(*) as mc,
-            COUNT(DISTINCT session_id) as sc
+            COUNT(DISTINCT session_id) as sc,
+            COALESCE(SUM(CASE WHEN role = 'assistant' AND response_error = 0 AND model IS NOT NULL THEN 1 ELSE 0 END), 0) as ok,
+            COALESCE(SUM(CASE WHEN response_error = 1 THEN 1 ELSE 0 END), 0) as fail
      FROM messages WHERE timestamp BETWEEN @from AND @to ${whereSrcMsgUnaliased}`
   ).get(params) as any;
+  const responseAttempts = totals.ok + totals.fail;
+  const responseSuccessRate = responseAttempts > 0 ? totals.ok / responseAttempts : 0;
 
   const byModel = (db.prepare(
     `SELECT model,
@@ -200,18 +204,25 @@ function computeOverview(
               COALESCE(SUM(cache_read_tokens),0) as cr,
               COALESCE(SUM(cost_usd),0) as cost,
               COUNT(*) as mc,
-              COUNT(DISTINCT session_id) as sc
+              COUNT(DISTINCT session_id) as sc,
+              COALESCE(SUM(CASE WHEN role = 'assistant' AND response_error = 0 AND model IS NOT NULL THEN 1 ELSE 0 END), 0) as ok,
+              COALESCE(SUM(CASE WHEN response_error = 1 THEN 1 ELSE 0 END), 0) as fail
        FROM messages WHERE timestamp BETWEEN @from AND @to ${whereSrcMsgUnaliased}`
     ).get(prevParams) as {
       i: number; o: number; cc: number; cr: number;
-      cost: number; mc: number; sc: number;
+      cost: number; mc: number; sc: number; ok: number; fail: number;
     };
     const pDenom = p.i + p.cc + p.cr;
+    const pAttempts = p.ok + p.fail;
     previous = {
       inputTokens: p.i, outputTokens: p.o,
       cacheCreate: p.cc, cacheRead: p.cr,
       costUsd: p.cost, messageCount: p.mc, sessionCount: p.sc,
       cacheHitRate: pDenom > 0 ? p.cr / pDenom : 0,
+      successfulResponses: p.ok,
+      failedResponses: p.fail,
+      responseAttempts: pAttempts,
+      responseSuccessRate: pAttempts > 0 ? p.ok / pAttempts : 0,
     };
   }
 
@@ -221,6 +232,10 @@ function computeOverview(
       inputTokens: totals.i, outputTokens: totals.o,
       cacheCreate: totals.cc, cacheRead: totals.cr,
       costUsd: totals.cost, messageCount: totals.mc, sessionCount: totals.sc,
+      successfulResponses: totals.ok,
+      failedResponses: totals.fail,
+      responseAttempts,
+      responseSuccessRate,
     },
     byModel: byModelOut,
     byProject,

@@ -36,7 +36,7 @@ describe('parseJsonlLine', () => {
     expect(parseJsonlLine('{"random":"thing"}', 'sess-1')).toBeNull();
   });
 
-  it('skips Claude synthetic API error messages', () => {
+  it('marks Claude synthetic API error messages as failed responses without a model', () => {
     const line = JSON.stringify({
       uuid: 'err-1',
       timestamp: '2026-04-20T10:00:15.000Z',
@@ -50,7 +50,10 @@ describe('parseJsonlLine', () => {
       },
     });
 
-    expect(parseJsonlLine(line, 'sess-1')).toBeNull();
+    const r = parseJsonlLine(line, 'sess-1');
+    expect(r).not.toBeNull();
+    expect(r!.model).toBeNull();
+    expect(r!.responseError).toBe(true);
   });
 
   it('keeps non-error synthetic messages out of model accounting', () => {
@@ -70,6 +73,7 @@ describe('parseJsonlLine', () => {
     const r = parseJsonlLine(line, 'sess-1');
     expect(r).not.toBeNull();
     expect(r!.model).toBeNull();
+    expect(r!.responseError).toBe(false);
     expect(r!.textPreview).toBe('No response requested.');
   });
 });

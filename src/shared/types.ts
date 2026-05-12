@@ -16,6 +16,7 @@ export interface ParsedMessage {
   source: 'claude' | 'codex';     // NEW
   originator: string | null;      // NEW
   cwdRealPath: string | null;     // NEW, Codex-specific; Claude passes null
+  responseError?: boolean;
 }
 
 export interface RateLimitSnapshot {
@@ -46,6 +47,10 @@ export interface OverviewResponse {
     costUsd: number;
     messageCount: number;
     sessionCount: number;
+    successfulResponses: number;
+    failedResponses: number;
+    responseAttempts: number;
+    responseSuccessRate: number;
   };
   byModel: Array<{ model: string; tokens: number; costUsd: number; share: number }>;
   byProject: Array<{ projectDir: string; displayName: string; tokens: number; costUsd: number; share: number }>;
@@ -86,6 +91,10 @@ export interface OverviewResponse {
     messageCount: number;
     sessionCount: number;
     cacheHitRate: number;
+    successfulResponses: number;
+    failedResponses: number;
+    responseAttempts: number;
+    responseSuccessRate: number;
   };
 }
 
