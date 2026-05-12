@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { MonitorConfig } from '../../shared/types.js';
-import { loadMonitorConfig, saveMonitorConfig, DEFAULT_MONITOR } from '../monitor/storage.js';
+import { loadMonitorConfig, saveMonitorConfig, mergeMonitorConfig, normalizeCostSteps } from '../monitor/storage.js';
 import { evaluateRules } from '../monitor/rules.js';
 import type { Monitor } from '../monitor/index.js';
 
@@ -17,6 +17,19 @@ function clampConfig(cfg: MonitorConfig): MonitorConfig {
     // or disable cooldowns entirely.
     intervalMinutes: Math.min(1440, Math.max(1, Math.round(cfg.intervalMinutes))),
     cooldownMinutes: Math.min(1440, Math.max(1, Math.round(cfg.cooldownMinutes))),
+    rules: {
+      ...cfg.rules,
+      todayCostClaude: {
+        ...cfg.rules.todayCostClaude,
+        thresholdUsd: Math.max(0, cfg.rules.todayCostClaude.thresholdUsd),
+        stepPercents: normalizeCostSteps(cfg.rules.todayCostClaude.stepPercents),
+      },
+      todayCostCodex: {
+        ...cfg.rules.todayCostCodex,
+        thresholdUsd: Math.max(0, cfg.rules.todayCostCodex.thresholdUsd),
+        stepPercents: normalizeCostSteps(cfg.rules.todayCostCodex.stepPercents),
+      },
+    },
   };
 }
 
@@ -25,11 +38,7 @@ export function registerMonitor(app: FastifyInstance, deps: MonitorDeps) {
 
   app.put('/api/monitor/settings', async (req) => {
     const incoming = req.body as Partial<MonitorConfig>;
-    const merged = clampConfig({
-      ...DEFAULT_MONITOR,
-      ...incoming,
-      rules: { ...DEFAULT_MONITOR.rules, ...(incoming.rules ?? {}) },
-    });
+    const merged = clampConfig(mergeMonitorConfig(incoming));
     saveMonitorConfig(deps.db, merged);
     deps.monitor?.reconfigure();
     return merged;

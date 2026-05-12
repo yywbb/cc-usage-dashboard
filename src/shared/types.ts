@@ -188,9 +188,16 @@ export interface MonitorRules {
   /** Codex 7d secondary window. */
   codex7d:           { enabled: boolean; thresholdPct: number };
   /** Today's Claude-only cost — fire when running cost ≥ thresholdUsd. */
-  todayCostClaude:   { enabled: boolean; thresholdUsd: number };
+  todayCostClaude:   CostMonitorRule;
   /** Today's Codex-only cost — fire when running cost ≥ thresholdUsd. */
-  todayCostCodex:    { enabled: boolean; thresholdUsd: number };
+  todayCostCodex:    CostMonitorRule;
+}
+
+export interface CostMonitorRule {
+  enabled: boolean;
+  thresholdUsd: number;
+  /** Alert once per reached percentage step of thresholdUsd. */
+  stepPercents: number[];
 }
 
 export interface MonitorConfig {
@@ -204,7 +211,7 @@ export interface MonitorConfig {
 }
 
 export interface MonitorAlert {
-  ruleId: keyof MonitorRules;
+  ruleId: string;
   title:  string;
   body:   string;
 }

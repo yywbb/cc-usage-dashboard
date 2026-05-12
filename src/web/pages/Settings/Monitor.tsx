@@ -20,6 +20,17 @@ const COOLDOWN_OPTIONS = [
   { label: '24 小时', value: 1440 },
 ];
 
+const STEP_PRESETS = [
+  { label: '临界', value: '90,100', steps: [90, 100] },
+  { label: '标准', value: '50,75,90,100', steps: [50, 75, 90, 100] },
+  { label: '密集', value: '25,50,75,90,100', steps: [25, 50, 75, 90, 100] },
+];
+
+function encodeSteps(steps: number[]): string {
+  const key = [...steps].sort((a, b) => a - b).join(',');
+  return STEP_PRESETS.some(p => p.value === key) ? key : STEP_PRESETS[1].value;
+}
+
 export default function MonitorPane() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
@@ -125,22 +136,26 @@ export default function MonitorPane() {
           <RuleRow
             t={t}
             title="今日 Claude cost 阈值"
-            desc="Claude 今日累计成本超过阈值时触发,只统计 source=claude 的消息。"
+            desc="Claude 今日累计成本达到阶梯时触发,只统计 source=claude 的消息。"
             enabled={draft.rules.todayCostClaude.enabled}
             onEnabledChange={(v) => updateRule('todayCostClaude', { enabled: v })}
             value={draft.rules.todayCostClaude.thresholdUsd}
             onValueChange={(v) => updateRule('todayCostClaude', { thresholdUsd: v })}
             unit="$" min={1} max={1000} step={5}
+            stepPercents={draft.rules.todayCostClaude.stepPercents}
+            onStepPercentsChange={(v) => updateRule('todayCostClaude', { stepPercents: v })}
           />
           <RuleRow
             t={t}
             title="今日 Codex cost 阈值"
-            desc="Codex 今日累计成本超过阈值时触发。Codex 额度通常更宽松,阈值可设高一些。"
+            desc="Codex 今日累计成本达到阶梯时触发。Codex 额度通常更宽松,阈值可设高一些。"
             enabled={draft.rules.todayCostCodex.enabled}
             onEnabledChange={(v) => updateRule('todayCostCodex', { enabled: v })}
             value={draft.rules.todayCostCodex.thresholdUsd}
             onValueChange={(v) => updateRule('todayCostCodex', { thresholdUsd: v })}
             unit="$" min={1} max={1000} step={5}
+            stepPercents={draft.rules.todayCostCodex.stepPercents}
+            onStepPercentsChange={(v) => updateRule('todayCostCodex', { stepPercents: v })}
           />
         </Space>
       </Card>
@@ -218,6 +233,7 @@ function Row({
 
 function RuleRow({
   t, title, desc, enabled, onEnabledChange, value, onValueChange, unit, min, max, step,
+  stepPercents, onStepPercentsChange,
 }: {
   t: typeof TOKENS['light'];
   title: string;
@@ -230,22 +246,44 @@ function RuleRow({
   min: number;
   max: number;
   step: number;
+  stepPercents?: number[];
+  onStepPercentsChange?: (v: number[]) => void;
 }) {
+  const stepValue = stepPercents ? encodeSteps(stepPercents) : undefined;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 600, color: t.textPrimary, marginBottom: 4 }}>{title}</div>
         <div style={{ fontSize: 12, color: t.textSecondary }}>{desc}</div>
+        {stepPercents && (
+          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>
+            阶梯: {[...stepPercents].sort((a, b) => a - b).map(v => `${v}%`).join(' / ')}
+          </div>
+        )}
       </div>
-      <Space size={8}>
-        <InputNumber
-          value={value}
-          onChange={(v) => onValueChange(Number(v ?? min))}
-          min={min} max={max} step={step}
-          addonAfter={unit}
-          style={{ width: 130 }}
-          disabled={!enabled}
-        />
+      <Space size={8} align="start">
+        <Space direction="vertical" size={6} align="end">
+          <InputNumber
+            value={value}
+            onChange={(v) => onValueChange(Number(v ?? min))}
+            min={min} max={max} step={step}
+            addonAfter={unit}
+            style={{ width: 130 }}
+            disabled={!enabled}
+          />
+          {stepPercents && onStepPercentsChange && (
+            <Segmented
+              size="small"
+              options={STEP_PRESETS.map(p => ({ label: p.label, value: p.value }))}
+              value={stepValue}
+              disabled={!enabled}
+              onChange={(v) => {
+                const preset = STEP_PRESETS.find(p => p.value === v) ?? STEP_PRESETS[1];
+                onStepPercentsChange(preset.steps);
+              }}
+            />
+          )}
+        </Space>
         <Switch
           checked={enabled}
           onChange={onEnabledChange}

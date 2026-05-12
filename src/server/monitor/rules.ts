@@ -1,5 +1,5 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
-import type { MonitorAlert, MonitorConfig } from '../../shared/types.js';
+import type { CostMonitorRule, MonitorAlert, MonitorConfig } from '../../shared/types.js';
 
 interface LatestRateLimit {
   primaryPct:   number | null;
@@ -38,16 +38,23 @@ const SOURCE_LABEL: Record<'claude' | 'codex', string> = {
 function evalTodayCost(
   db: DatabaseType,
   source: 'claude' | 'codex',
-  rule: { enabled: boolean; thresholdUsd: number },
+  rule: CostMonitorRule,
   ruleId: keyof MonitorConfig['rules'],
 ): MonitorAlert | null {
   if (!rule.enabled) return null;
+  if (rule.thresholdUsd <= 0) return null;
   const cost = todayCostUsdBySource(db, source);
-  if (cost < rule.thresholdUsd) return null;
+  const usedPct = (cost / rule.thresholdUsd) * 100;
+  const reachedStep = [...rule.stepPercents]
+    .sort((a, b) => b - a)
+    .find(step => usedPct >= step);
+  if (reachedStep === undefined) return null;
+  const stepUsd = rule.thresholdUsd * reachedStep / 100;
+  const final = reachedStep >= 100;
   return {
-    ruleId,
-    title: `今日 ${SOURCE_LABEL[source]} cost 告警`,
-    body:  `${SOURCE_LABEL[source]} 今日已消耗 $${cost.toFixed(2)} ≥ 阈值 $${rule.thresholdUsd.toFixed(2)}`,
+    ruleId: `${ruleId}:${reachedStep}`,
+    title: `今日 ${SOURCE_LABEL[source]} cost ${final ? '阈值告警' : '阶梯提醒'}`,
+    body:  `${SOURCE_LABEL[source]} 今日已消耗 $${cost.toFixed(2)} / $${rule.thresholdUsd.toFixed(2)} (${usedPct.toFixed(1)}%), 已达到 ${reachedStep}% 阶梯 ($${stepUsd.toFixed(2)})`,
   };
 }
 
