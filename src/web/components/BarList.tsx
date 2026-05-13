@@ -1,5 +1,6 @@
 import { useTheme } from '../theme/useTheme.js';
 import { TOKENS } from '../theme/tokens.js';
+import { useI18n } from '../i18n/index.js';
 
 export interface BarListItem {
   label: string;
@@ -11,7 +12,7 @@ export interface BarListItem {
 export default function BarList({
   items,
   formatter = (v) => v.toLocaleString(),
-  emptyText = '暂无数据',
+  emptyText,
 }: {
   items: BarListItem[];
   formatter?: (v: number) => string;
@@ -19,7 +20,9 @@ export default function BarList({
 }) {
   const { mode } = useTheme();
   const t = TOKENS[mode];
-  if (items.length === 0) return <div style={{ color: t.textMuted, fontSize: 12, padding: '12px 0' }}>{emptyText}</div>;
+  const { t: tr } = useI18n();
+  const empty = emptyText ?? tr('common.empty');
+  if (items.length === 0) return <div style={{ color: t.textMuted, fontSize: 12, padding: '12px 0' }}>{empty}</div>;
   const max = Math.max(...items.map(i => i.value), 0);
   const sorted = [...items].sort((a, b) => b.value - a.value);
   const track = mode === 'dark' ? '#1e293b' : '#f1f5f9';

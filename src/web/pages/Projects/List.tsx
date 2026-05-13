@@ -10,19 +10,16 @@ import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { useFormatTokens } from '../../format.js';
 import { useStore } from '../../store.js';
+import { useI18n } from '../../i18n/index.js';
 
 function b64(p: string) { return btoa(p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
 type SortBy = 'cost' | 'tokens' | 'sessions';
-const SORT_OPTIONS: { label: string; value: SortBy }[] = [
-  { label: '成本', value: 'cost' },
-  { label: 'Token', value: 'tokens' },
-  { label: '会话数', value: 'sessions' },
-];
 
 export default function ProjectsList() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
   const fmtTokens = useFormatTokens();
   const [sortBy, setSortBy] = useState<SortBy>('cost');
   const sourceFilter = useStore(s => s.sourceFilter);
@@ -42,18 +39,24 @@ export default function ProjectsList() {
     { sessionCount: 0, totalTokens: 0, totalCostUsd: 0 },
   ), [rows]);
 
+  const sortOptions: { label: string; value: SortBy }[] = [
+    { label: tr('projects.sortCost'), value: 'cost' },
+    { label: tr('projects.sortToken'), value: 'tokens' },
+    { label: tr('projects.sortSessions'), value: 'sessions' },
+  ];
+
   return (
     <>
       <PageHeader
-        title="项目"
-        subtitle={`共 ${rows.length} 条`}
-        extra={<Segmented options={SORT_OPTIONS} value={sortBy} onChange={(v) => setSortBy(v as SortBy)} />}
+        title={tr('projects.title')}
+        subtitle={tr('projects.subtitle', { n: rows.length })}
+        extra={<Segmented options={sortOptions} value={sortBy} onChange={(v) => setSortBy(v as SortBy)} />}
       />
       <Row gutter={14} style={{ marginBottom: 16 }}>
-        <Col span={6}><KpiCard title="项目数" value={rows.length} /></Col>
-        <Col span={6}><KpiCard title="总会话数" value={stats.sessionCount} /></Col>
-        <Col span={6}><KpiCard title="总 Token" value={stats.totalTokens} formatter={fmtTokens} /></Col>
-        <Col span={6}><KpiCard title="总成本" value={stats.totalCostUsd} precision={2} suffix="$" /></Col>
+        <Col span={6}><KpiCard title={tr('projects.kpiCount')} value={rows.length} /></Col>
+        <Col span={6}><KpiCard title={tr('projects.kpiSessions')} value={stats.sessionCount} /></Col>
+        <Col span={6}><KpiCard title={tr('projects.kpiTokens')} value={stats.totalTokens} formatter={fmtTokens} /></Col>
+        <Col span={6}><KpiCard title={tr('projects.kpiCost')} value={stats.totalCostUsd} precision={2} suffix="$" /></Col>
       </Row>
       <Table<ProjectRow>
         loading={isLoading}
@@ -63,11 +66,11 @@ export default function ProjectsList() {
           defaultPageSize: 15,
           pageSizeOptions: [10, 15, 20, 50, 100],
           showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 条`,
+          showTotal: (total) => tr('common.totalCount', { n: total }),
         }}
         columns={[
           {
-            title: '项目',
+            title: tr('projects.col.project'),
             dataIndex: 'displayName',
             render: (_, r) => (
               <Link to={`/projects/${b64(r.projectDir)}`} style={{ display: 'block', lineHeight: 1.35 }}>
@@ -78,16 +81,16 @@ export default function ProjectsList() {
               </Link>
             ),
           },
-          { title: '会话数', dataIndex: 'sessionCount', align: 'right', width: 80 },
+          { title: tr('projects.col.sessions'), dataIndex: 'sessionCount', align: 'right', width: 80 },
           {
-            title: 'Token',
+            title: tr('projects.col.tokens'),
             dataIndex: 'totalTokens',
             align: 'right',
             width: 120,
             render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
           },
           {
-            title: '成本 ($)',
+            title: tr('projects.col.cost'),
             dataIndex: 'totalCostUsd',
             align: 'right',
             width: 200,
@@ -105,14 +108,14 @@ export default function ProjectsList() {
             },
           },
           {
-            title: '平均/会话',
+            title: tr('projects.col.avgPerSession'),
             dataIndex: 'avgTokensPerSession',
             align: 'right',
             width: 110,
             render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
           },
           {
-            title: '最近活跃',
+            title: tr('projects.col.lastSeen'),
             dataIndex: 'lastSeenAt',
             width: 170,
             render: (v: number) => new Date(v).toLocaleString(),

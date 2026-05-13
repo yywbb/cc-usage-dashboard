@@ -4,27 +4,30 @@ import PageHeader from '../../components/PageHeader.js';
 import PricingPane from './Pricing.js';
 import PreferencesPane from './Preferences.js';
 import MonitorPane from './Monitor.js';
+import { useI18n } from '../../i18n/index.js';
+import type { MessageKey } from '../../i18n/messages.js';
 
 type TabKey = 'preferences' | 'pricing' | 'monitor';
 
-const SUBTITLE: Record<TabKey, string> = {
-  preferences: '显示偏好与本地配置 · 仅影响当前浏览器',
-  pricing:     '按每百万 token 设置美元单价 · 模型列表来自实际使用记录',
-  monitor:     '后台间隔扫描 + 规则触发系统通知 · 设置保存在服务端 DB',
+const SUBTITLE_KEY: Record<TabKey, MessageKey> = {
+  preferences: 'settings.subtitle.preferences',
+  pricing:     'settings.subtitle.pricing',
+  monitor:     'settings.subtitle.monitor',
 };
 
 export default function Settings() {
   const [tab, setTab] = useState<TabKey>('preferences');
+  const { t } = useI18n();
   return (
     <>
-      <PageHeader title="设置" subtitle={SUBTITLE[tab]} />
+      <PageHeader title={t('settings.title')} subtitle={t(SUBTITLE_KEY[tab])} />
       <Tabs
         activeKey={tab}
         onChange={(k) => setTab(k as TabKey)}
         items={[
-          { key: 'preferences', label: '显示偏好', children: <PreferencesPane /> },
-          { key: 'pricing',     label: '计费规则', children: <PricingPane /> },
-          { key: 'monitor',     label: '用量监控', children: <MonitorPane /> },
+          { key: 'preferences', label: t('settings.tab.preferences'), children: <PreferencesPane /> },
+          { key: 'pricing',     label: t('settings.tab.pricing'),     children: <PricingPane /> },
+          { key: 'monitor',     label: t('settings.tab.monitor'),     children: <MonitorPane /> },
         ]}
       />
     </>

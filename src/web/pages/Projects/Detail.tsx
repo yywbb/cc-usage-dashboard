@@ -11,6 +11,7 @@ import { useTheme } from '../../theme/useTheme.js';
 import { echartsThemeName, formatCompactNumber } from '../../theme/echarts.js';
 import { useFormatTokens } from '../../format.js';
 import { useStore } from '../../store.js';
+import { useI18n } from '../../i18n/index.js';
 
 interface Timeline {
   daily: Array<{ date: string; tokens: number; costUsd: number; sessionCount: number }>;
@@ -31,6 +32,7 @@ export default function ProjectDetail() {
   const { b64 } = useParams<{ b64: string }>();
   const nav = useNavigate();
   const { mode } = useTheme();
+  const { t: tr } = useI18n();
   const fmtTokens = useFormatTokens();
   const sourceFilter = useStore(s => s.sourceFilter);
   const { data } = useQuery({
@@ -44,16 +46,16 @@ export default function ProjectDetail() {
     <>
       <PageHeader
         title={projectName}
-        subtitle="项目时间线"
-        extra={<Button icon={<ArrowLeftOutlined />} onClick={() => nav('/projects')}>返回</Button>}
+        subtitle={tr('projects.detail.subtitle')}
+        extra={<Button icon={<ArrowLeftOutlined />} onClick={() => nav('/projects')}>{tr('common.back')}</Button>}
       />
       {data?.totals && (() => {
         const tot = data.totals;
         const totalTokens = tot.inputTokens + tot.outputTokens + tot.cacheCreate + tot.cacheRead;
         return (
           <Row gutter={14} style={{ marginBottom: 16 }}>
-            <Col flex="1 1 0"><KpiCard title="会话数" value={tot.sessionCount} /></Col>
-            <Col flex="1 1 0"><KpiCard title="消息数" value={tot.messageCount} formatter={fmtTokens} /></Col>
+            <Col flex="1 1 0"><KpiCard title={tr('projects.detail.kpi.sessions')} value={tot.sessionCount} /></Col>
+            <Col flex="1 1 0"><KpiCard title={tr('projects.detail.kpi.messages')} value={tot.messageCount} formatter={fmtTokens} /></Col>
             <Col flex="1 1 0">
               <Popover
                 placement="bottomLeft"
@@ -63,18 +65,18 @@ export default function ProjectDetail() {
                 }
               >
                 <div style={{ cursor: 'help' }}>
-                  <KpiCard title="总 Token" value={totalTokens} formatter={fmtTokens} />
+                  <KpiCard title={tr('projects.detail.kpi.totalToken')} value={totalTokens} formatter={fmtTokens} />
                 </div>
               </Popover>
             </Col>
             <Col flex="1 1 0">
-              <KpiCard title="缓存命中率" value={tot.cacheHitRate * 100} precision={1} suffix="%" />
+              <KpiCard title={tr('projects.detail.kpi.cacheHit')} value={tot.cacheHitRate * 100} precision={1} suffix="%" />
             </Col>
-            <Col flex="1 1 0"><KpiCard title="总成本" value={tot.costUsd} precision={2} suffix="$" /></Col>
+            <Col flex="1 1 0"><KpiCard title={tr('projects.detail.kpi.totalCost')} value={tot.costUsd} precision={2} suffix="$" /></Col>
           </Row>
         );
       })()}
-      <Card title="每日 token 与成本" style={{ marginBottom: 16 }}>
+      <Card title={tr('projects.detail.dailyChart')} style={{ marginBottom: 16 }}>
         <ReactECharts
           theme={echartsThemeName(mode)}
           style={{ height: 320 }}
@@ -106,7 +108,7 @@ export default function ProjectDetail() {
           }}
         />
       </Card>
-      <Card title="Top 20 会话(按成本)">
+      <Card title={tr('projects.detail.topSessions')}>
         <Table
           size="small"
           rowKey="sessionId"
@@ -115,21 +117,21 @@ export default function ProjectDetail() {
             defaultPageSize: 15,
             pageSizeOptions: [10, 15, 20, 50, 100],
             showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
+            showTotal: (total) => tr('common.totalCount', { n: total }),
           }}
           columns={[
             {
-              title: '会话', dataIndex: 'sessionId',
+              title: tr('projects.detail.col.session'), dataIndex: 'sessionId',
               render: (sid) => <Link to={`/sessions/${sid}`}>{sid.slice(0, 8)}…</Link>,
             },
-            { title: '开始时间', dataIndex: 'startedAt', render: (v) => new Date(v).toLocaleString() },
-            { title: '消息数', dataIndex: 'messageCount', align: 'right', width: 80 },
+            { title: tr('projects.detail.col.startedAt'), dataIndex: 'startedAt', render: (v) => new Date(v).toLocaleString() },
+            { title: tr('projects.detail.col.messages'), dataIndex: 'messageCount', align: 'right', width: 80 },
             {
-              title: 'Token', dataIndex: 'totalTokens', align: 'right', width: 120,
+              title: tr('projects.detail.col.token'), dataIndex: 'totalTokens', align: 'right', width: 120,
               render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
             },
             {
-              title: '成本 ($)', dataIndex: 'totalCostUsd', align: 'right', width: 110,
+              title: tr('projects.detail.col.cost'), dataIndex: 'totalCostUsd', align: 'right', width: 110,
               render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,
             },
           ]}

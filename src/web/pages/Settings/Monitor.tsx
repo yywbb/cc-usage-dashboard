@@ -5,25 +5,12 @@ import { api } from '../../api/client.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import type { MonitorAlert, MonitorConfig } from '../../../shared/types.js';
-
-const INTERVAL_OPTIONS = [
-  { label: '1 分钟',  value: 1 },
-  { label: '5 分钟',  value: 5 },
-  { label: '15 分钟', value: 15 },
-  { label: '30 分钟', value: 30 },
-];
-
-const COOLDOWN_OPTIONS = [
-  { label: '15 分钟', value: 15 },
-  { label: '1 小时',  value: 60 },
-  { label: '4 小时',  value: 240 },
-  { label: '24 小时', value: 1440 },
-];
+import { useI18n } from '../../i18n/index.js';
 
 const STEP_PRESETS = [
-  { label: '临界', value: '90,100', steps: [90, 100] },
-  { label: '标准', value: '50,75,90,100', steps: [50, 75, 90, 100] },
-  { label: '密集', value: '25,50,75,90,100', steps: [25, 50, 75, 90, 100] },
+  { labelKey: 'monitor.preset.critical' as const, value: '90,100', steps: [90, 100] },
+  { labelKey: 'monitor.preset.standard' as const, value: '50,75,90,100', steps: [50, 75, 90, 100] },
+  { labelKey: 'monitor.preset.dense' as const,    value: '25,50,75,90,100', steps: [25, 50, 75, 90, 100] },
 ];
 
 function encodeSteps(steps: number[]): string {
@@ -34,7 +21,22 @@ function encodeSteps(steps: number[]): string {
 export default function MonitorPane() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
   const qc = useQueryClient();
+
+  const intervalOptions = [
+    { label: tr('monitor.interval.1m'),  value: 1 },
+    { label: tr('monitor.interval.5m'),  value: 5 },
+    { label: tr('monitor.interval.15m'), value: 15 },
+    { label: tr('monitor.interval.30m'), value: 30 },
+  ];
+
+  const cooldownOptions = [
+    { label: tr('monitor.cooldown.15m'), value: 15 },
+    { label: tr('monitor.cooldown.1h'),  value: 60 },
+    { label: tr('monitor.cooldown.4h'),  value: 240 },
+    { label: tr('monitor.cooldown.24h'), value: 1440 },
+  ];
 
   const settings = useQuery<MonitorConfig>({
     queryKey: ['monitor', 'settings'],
@@ -53,7 +55,6 @@ export default function MonitorPane() {
     },
   });
 
-  // Local draft so number inputs feel responsive without firing a PUT per keystroke.
   const [draft, setDraft] = useState<MonitorConfig | null>(null);
   useEffect(() => { if (settings.data) setDraft(settings.data); }, [settings.data]);
 
@@ -72,23 +73,24 @@ export default function MonitorPane() {
         <Space direction="vertical" size={18} style={{ width: '100%' }}>
           <Row
             t={t}
-            title="启用用量监控"
-            desc="后台按设定间隔拉取最新数据并按规则触发系统通知。关闭后,服务进程不会再做后台扫描。"
+            title={tr('monitor.row.enable.title')}
+            desc={tr('monitor.row.enable.desc')}
             control={
               <Switch
                 checked={draft.enabled}
                 onChange={(v) => update({ enabled: v })}
-                checkedChildren="开" unCheckedChildren="关"
+                checkedChildren={tr('monitor.switch.on')}
+                unCheckedChildren={tr('monitor.switch.off')}
               />
             }
           />
           <Row
             t={t}
-            title="扫描间隔"
-            desc="每隔多久跑一次扫描 + 规则评估。频率越高,越能及时捕到 Codex 限额尖刺,但也会更频繁读取 jsonl 文件。"
+            title={tr('monitor.row.interval.title')}
+            desc={tr('monitor.row.interval.desc')}
             control={
               <Segmented
-                options={INTERVAL_OPTIONS}
+                options={intervalOptions}
                 value={draft.intervalMinutes}
                 onChange={(v) => update({ intervalMinutes: Number(v) })}
                 disabled={!draft.enabled}
@@ -97,11 +99,11 @@ export default function MonitorPane() {
           />
           <Row
             t={t}
-            title="同规则冷却"
-            desc="同一条规则触发后,在该时间窗内不会再次发出通知,避免刷屏。"
+            title={tr('monitor.row.cooldown.title')}
+            desc={tr('monitor.row.cooldown.desc')}
             control={
               <Segmented
-                options={COOLDOWN_OPTIONS}
+                options={cooldownOptions}
                 value={draft.cooldownMinutes}
                 onChange={(v) => update({ cooldownMinutes: Number(v) })}
                 disabled={!draft.enabled}
@@ -111,12 +113,12 @@ export default function MonitorPane() {
         </Space>
       </Card>
 
-      <Card title="告警规则">
+      <Card title={tr('monitor.rulesTitle')}>
         <Space direction="vertical" size={18} style={{ width: '100%' }}>
           <RuleRow
             t={t}
-            title="Codex 5h 限额"
-            desc="Codex 当前 5 小时窗口的 used_pct 达到阈值时触发。阈值设 95% 是接近触顶的提前预警。"
+            title={tr('monitor.rule.codex5h.title')}
+            desc={tr('monitor.rule.codex5h.desc')}
             enabled={draft.rules.codex5h.enabled}
             onEnabledChange={(v) => updateRule('codex5h', { enabled: v })}
             value={draft.rules.codex5h.thresholdPct}
@@ -125,8 +127,8 @@ export default function MonitorPane() {
           />
           <RuleRow
             t={t}
-            title="Codex 7d 限额"
-            desc="Codex 当前 7 天窗口的 used_pct 达到阈值时触发。"
+            title={tr('monitor.rule.codex7d.title')}
+            desc={tr('monitor.rule.codex7d.desc')}
             enabled={draft.rules.codex7d.enabled}
             onEnabledChange={(v) => updateRule('codex7d', { enabled: v })}
             value={draft.rules.codex7d.thresholdPct}
@@ -135,8 +137,8 @@ export default function MonitorPane() {
           />
           <RuleRow
             t={t}
-            title="今日 Claude cost 阈值"
-            desc="Claude 今日累计成本达到阶梯时触发,只统计 source=claude 的消息。"
+            title={tr('monitor.rule.todayCostClaude.title')}
+            desc={tr('monitor.rule.todayCostClaude.desc')}
             enabled={draft.rules.todayCostClaude.enabled}
             onEnabledChange={(v) => updateRule('todayCostClaude', { enabled: v })}
             value={draft.rules.todayCostClaude.thresholdUsd}
@@ -147,8 +149,8 @@ export default function MonitorPane() {
           />
           <RuleRow
             t={t}
-            title="今日 Codex cost 阈值"
-            desc="Codex 今日累计成本达到阶梯时触发。Codex 额度通常更宽松,阈值可设高一些。"
+            title={tr('monitor.rule.todayCostCodex.title')}
+            desc={tr('monitor.rule.todayCostCodex.desc')}
             enabled={draft.rules.todayCostCodex.enabled}
             onEnabledChange={(v) => updateRule('todayCostCodex', { enabled: v })}
             value={draft.rules.todayCostCodex.thresholdUsd}
@@ -161,33 +163,37 @@ export default function MonitorPane() {
       </Card>
 
       <Card
-        title="当前会触发"
+        title={tr('monitor.preview.title')}
         extra={
           <span style={{ fontSize: 11, color: t.textSecondary }}>
-            按已保存的规则即时评估,不会发出系统通知
+            {tr('monitor.preview.subtitle')}
           </span>
         }
       >
         {preview.isLoading && <Spin size="small" />}
         {preview.data && preview.data.alerts.length === 0 && (
-          <div style={{ fontSize: 12, color: t.textSecondary }}>当前没有命中的规则</div>
+          <div style={{ fontSize: 12, color: t.textSecondary }}>{tr('monitor.preview.none')}</div>
         )}
         {preview.data && preview.data.alerts.length > 0 && (
           <Space direction="vertical" size={8} style={{ width: '100%' }}>
-            {preview.data.alerts.map(a => (
-              <Alert
-                key={a.ruleId}
-                type="warning"
-                showIcon
-                message={
-                  <span>
-                    <Tag color="orange" style={{ marginInlineEnd: 8 }}>{a.ruleId}</Tag>
-                    {a.title}
-                  </span>
-                }
-                description={a.body}
-              />
-            ))}
+            {preview.data.alerts.map(a => {
+              const title = a.titleKey ? tr(a.titleKey, a.vars) : a.title;
+              const body  = a.bodyKey  ? tr(a.bodyKey,  a.vars) : a.body;
+              return (
+                <Alert
+                  key={a.ruleId}
+                  type="warning"
+                  showIcon
+                  message={
+                    <span>
+                      <Tag color="orange" style={{ marginInlineEnd: 8 }}>{a.ruleId}</Tag>
+                      {title}
+                    </span>
+                  }
+                  description={body}
+                />
+              );
+            })}
           </Space>
         )}
       </Card>
@@ -197,7 +203,7 @@ export default function MonitorPane() {
           onClick={() => settings.data && setDraft(settings.data)}
           disabled={!dirty || save.isPending}
         >
-          重置
+          {tr('common.reset')}
         </Button>
         <Button
           type="primary"
@@ -205,7 +211,7 @@ export default function MonitorPane() {
           disabled={!dirty}
           onClick={() => save.mutate(draft)}
         >
-          保存
+          {tr('common.save')}
         </Button>
       </div>
     </Space>
@@ -249,6 +255,7 @@ function RuleRow({
   stepPercents?: number[];
   onStepPercentsChange?: (v: number[]) => void;
 }) {
+  const { t: tr } = useI18n();
   const stepValue = stepPercents ? encodeSteps(stepPercents) : undefined;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
@@ -257,7 +264,7 @@ function RuleRow({
         <div style={{ fontSize: 12, color: t.textSecondary }}>{desc}</div>
         {stepPercents && (
           <div style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>
-            阶梯: {[...stepPercents].sort((a, b) => a - b).map(v => `${v}%`).join(' / ')}
+            {tr('monitor.ladder', { value: [...stepPercents].sort((a, b) => a - b).map(v => `${v}%`).join(' / ') })}
           </div>
         )}
       </div>
@@ -274,7 +281,7 @@ function RuleRow({
           {stepPercents && onStepPercentsChange && (
             <Segmented
               size="small"
-              options={STEP_PRESETS.map(p => ({ label: p.label, value: p.value }))}
+              options={STEP_PRESETS.map(p => ({ label: tr(p.labelKey), value: p.value }))}
               value={stepValue}
               disabled={!enabled}
               onChange={(v) => {
@@ -287,7 +294,8 @@ function RuleRow({
         <Switch
           checked={enabled}
           onChange={onEnabledChange}
-          checkedChildren="开" unCheckedChildren="关"
+          checkedChildren={tr('monitor.switch.on')}
+          unCheckedChildren={tr('monitor.switch.off')}
         />
       </Space>
     </div>

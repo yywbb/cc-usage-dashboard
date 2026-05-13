@@ -2,6 +2,7 @@ import { Segmented, Input, Button, Space } from 'antd';
 import { PlusOutlined, WarningFilled } from '@ant-design/icons';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
+import { useI18n } from '../../i18n/index.js';
 
 export type ProviderFilter = 'all' | 'unknown' | number;
 
@@ -28,9 +29,10 @@ export default function PricingFilters({
 }: Props) {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
 
   const segmentedOptions: Array<{ label: React.ReactNode; value: ProviderFilter }> = [
-    { label: '全部', value: 'all' },
+    { label: tr('pricing.filter.all'), value: 'all' },
     ...providers.map(p => ({
       label: <span>{p.displayName} <span style={{ color: t.textMuted }}>{p.modelCount}</span></span>,
       value: p.id as ProviderFilter,
@@ -41,7 +43,7 @@ export default function PricingFilters({
       label: (
         <span style={{ color: t.warning }}>
           <WarningFilled style={{ marginRight: 4 }} />
-          Unknown {unconfiguredCount}
+          {tr('pricing.filter.unknown', { n: unconfiguredCount })}
         </span>
       ),
       value: 'unknown',
@@ -60,15 +62,15 @@ export default function PricingFilters({
       />
       <div style={{ flex: 1 }} />
       <Input.Search
-        placeholder="搜索模型名"
+        placeholder={tr('pricing.searchPlaceholder')}
         allowClear
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         style={{ width: 240 }}
       />
       <Space size={8}>
-        <Button icon={<PlusOutlined />} onClick={onAddModel}>新增模型</Button>
-        <Button onClick={onManageProviders}>管理供应商</Button>
+        <Button icon={<PlusOutlined />} onClick={onAddModel}>{tr('pricing.addModel')}</Button>
+        <Button onClick={onManageProviders}>{tr('pricing.manageProviders')}</Button>
       </Space>
     </div>
   );

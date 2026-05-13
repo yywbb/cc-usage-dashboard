@@ -11,6 +11,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { api } from '../../api/client.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
+import { useI18n } from '../../i18n/index.js';
 
 interface Window {
   id: number;
@@ -37,6 +38,7 @@ interface FormValues {
 export default function PricingHistoryTable({ model }: { model: string }) {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Window | null>(null);
   const [creating, setCreating] = useState(false);
@@ -58,7 +60,7 @@ export default function PricingHistoryTable({ model }: { model: string }) {
       input: v.input, output: v.output, cacheCreate: v.cacheCreate, cacheRead: v.cacheRead,
       note: v.note ?? null,
     }),
-    onSuccess: () => { message.success('已添加'); setCreating(false); form.resetFields(); invalidate(); },
+    onSuccess: () => { message.success(tr('pricing.history.add.success')); setCreating(false); form.resetFields(); invalidate(); },
     onError: (e: Error) => message.error(e.message),
   });
 
@@ -68,13 +70,13 @@ export default function PricingHistoryTable({ model }: { model: string }) {
       input: v.input, output: v.output, cacheCreate: v.cacheCreate, cacheRead: v.cacheRead,
       note: v.note ?? null,
     }),
-    onSuccess: () => { message.success('已更新'); setEditing(null); form.resetFields(); invalidate(); },
+    onSuccess: () => { message.success(tr('pricing.history.update.success')); setEditing(null); form.resetFields(); invalidate(); },
     onError: (e: Error) => message.error(e.message),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => api.delete(`/api/pricing/${id}`),
-    onSuccess: () => { message.success('已删除'); invalidate(); },
+    onSuccess: () => { message.success(tr('pricing.history.delete.success')); invalidate(); },
     onError: (e: Error) => message.error(e.message),
   });
 
@@ -102,13 +104,13 @@ export default function PricingHistoryTable({ model }: { model: string }) {
       paddingLeft: 16, paddingTop: 12, paddingBottom: 12, paddingRight: 4,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <strong style={{ color: t.textPrimary }}>价格历史</strong>
+        <strong style={{ color: t.textPrimary }}>{tr('pricing.history.title')}</strong>
         <Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => {
           setEditing(null);
           setCreating(true);
           form.resetFields();
           form.setFieldsValue({ effectiveFrom: dayjs(), input: 0, output: 0, cacheCreate: 0, cacheRead: 0 });
-        }}>新增调价</Button>
+        }}>{tr('pricing.history.add')}</Button>
       </div>
 
       <Table<Window>
@@ -117,10 +119,10 @@ export default function PricingHistoryTable({ model }: { model: string }) {
         loading={isLoading}
         dataSource={rows}
         pagination={false}
-        locale={{ emptyText: <Empty description={data?.defaultFallback ? '尚无窗口，使用内置默认价' : '尚无窗口'} /> }}
+        locale={{ emptyText: <Empty description={data?.defaultFallback ? tr('pricing.history.emptyWithDefault') : tr('pricing.history.empty')} /> }}
         columns={[
           {
-            title: '生效日期', dataIndex: 'effectiveFrom', width: 150,
+            title: tr('pricing.history.col.effective'), dataIndex: 'effectiveFrom', width: 150,
             render: (v: string, row: Window) => {
               const future = v > today;
               const isActive = row.id === activeId;
@@ -130,7 +132,7 @@ export default function PricingHistoryTable({ model }: { model: string }) {
                   <span style={{ fontWeight: isActive ? 600 : 400, color: isActive ? t.success : undefined }}>
                     {v}
                   </span>
-                  {future && <Tag color="default">待生效</Tag>}
+                  {future && <Tag color="default">{tr('pricing.history.future')}</Tag>}
                 </Space>
               );
             },
@@ -143,10 +145,10 @@ export default function PricingHistoryTable({ model }: { model: string }) {
             render: (v) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>${v}</span> },
           { title: 'CR',     dataIndex: 'cacheRead',   width: 80, align: 'right',
             render: (v) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>${v}</span> },
-          { title: '备注',   dataIndex: 'note',
+          { title: tr('pricing.history.col.note'),   dataIndex: 'note',
             render: (v: string | null) => v ?? <span style={{ color: t.textMuted }}>—</span> },
           {
-            title: '操作', width: 90, align: 'right',
+            title: tr('pricing.history.col.actions'), width: 90, align: 'right',
             render: (_: unknown, row: Window) => (
               <Space size={2}>
                 <Button size="small" type="text" icon={<EditOutlined />} onClick={() => {
@@ -159,7 +161,7 @@ export default function PricingHistoryTable({ model }: { model: string }) {
                     note: row.note ?? undefined,
                   });
                 }} />
-                <Popconfirm title="删除该窗口？" onConfirm={() => deleteMut.mutate(row.id)}>
+                <Popconfirm title={tr('pricing.history.deletePrompt')} onConfirm={() => deleteMut.mutate(row.id)}>
                   <Button size="small" type="text" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               </Space>
@@ -169,7 +171,7 @@ export default function PricingHistoryTable({ model }: { model: string }) {
       />
 
       <Modal
-        title={editing ? '编辑价格窗口' : '新增价格调整'}
+        title={editing ? tr('pricing.history.modal.edit') : tr('pricing.history.modal.add')}
         open={creating || editing !== null}
         onCancel={() => { setCreating(false); setEditing(null); form.resetFields(); }}
         onOk={submit}
@@ -177,7 +179,7 @@ export default function PricingHistoryTable({ model }: { model: string }) {
         destroyOnClose
       >
         <Form form={form} layout="vertical" preserve={false}>
-          <Form.Item label="生效日期" name="effectiveFrom" rules={[{ required: true }]}>
+          <Form.Item label={tr('pricing.modal.effectiveFrom')} name="effectiveFrom" rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
           </Form.Item>
           <Row gutter={[12, 0]}>
@@ -202,8 +204,8 @@ export default function PricingHistoryTable({ model }: { model: string }) {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item label="备注" name="note">
-            <Input.TextArea rows={2} placeholder="可选：说明调价原因或来源链接" />
+          <Form.Item label={tr('pricing.history.note')} name="note">
+            <Input.TextArea rows={2} placeholder={tr('pricing.history.notePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>

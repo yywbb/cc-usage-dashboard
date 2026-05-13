@@ -11,12 +11,7 @@ import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { useFormatTokens } from '../../format.js';
 import { useStore } from '../../store.js';
-
-const RANGE_OPTIONS: { label: string; value: RangeKey }[] = [
-  { label: '今天', value: 'today' }, { label: '本周', value: 'week' },
-  { label: '本月', value: 'month' }, { label: 'YTD', value: 'ytd' },
-  { label: '全部', value: 'all' },
-];
+import { useI18n } from '../../i18n/index.js';
 
 function rangeToFromTo(r: RangeKey): { from?: string; to?: string } {
   const now = new Date();
@@ -32,14 +27,6 @@ function rangeToFromTo(r: RangeKey): { from?: string; to?: string } {
   }
 }
 
-function durationTag(ms: number): { color: string; text: string } {
-  const min = Math.round(ms / 60000);
-  if (min < 10) return { color: 'green',   text: `${min} 分` };
-  if (min < 60) return { color: 'default', text: `${min} 分` };
-  const hr = (min / 60).toFixed(1);
-  return { color: 'orange', text: `${hr} 时` };
-}
-
 function b64(p: string) { return btoa(p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
 function hashColor(name: string): string {
@@ -48,14 +35,10 @@ function hashColor(name: string): string {
   return palette[Math.abs(h) % palette.length];
 }
 
-const ORIGINATOR_OPTIONS = [
-  { value: 'codex_cli', label: 'CLI' },
-  { value: 'codex_vscode', label: 'VS Code' },
-];
-
 export default function SessionsList() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
   const fmtTokens = useFormatTokens();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
@@ -67,6 +50,25 @@ export default function SessionsList() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const sourceFilter = useStore(s => s.sourceFilter);
   const [originator, setOriginator] = useState<string | null>(null);
+
+  const rangeOptions: { label: string; value: RangeKey }[] = [
+    { label: tr('range.today'), value: 'today' }, { label: tr('range.week'), value: 'week' },
+    { label: tr('range.month'), value: 'month' }, { label: tr('range.ytd'), value: 'ytd' },
+    { label: tr('range.all'), value: 'all' },
+  ];
+
+  const originatorOptions = [
+    { value: 'codex_cli', label: 'CLI' },
+    { value: 'codex_vscode', label: 'VS Code' },
+  ];
+
+  const durationTag = (ms: number): { color: string; text: string } => {
+    const min = Math.round(ms / 60000);
+    if (min < 10) return { color: 'green',   text: tr('sessions.duration.minutes', { n: min }) };
+    if (min < 60) return { color: 'default', text: tr('sessions.duration.minutes', { n: min }) };
+    const hr = (min / 60).toFixed(1);
+    return { color: 'orange', text: tr('sessions.duration.hours', { n: hr }) };
+  };
 
   const projects = useQuery({
     queryKey: ['projects'],
@@ -110,50 +112,50 @@ export default function SessionsList() {
   return (
     <>
       <PageHeader
-        title="会话"
-        subtitle={`共 ${data?.total ?? 0} 条`}
-        extra={<Segmented options={RANGE_OPTIONS} value={range} onChange={(v) => { setRange(v as RangeKey); setPage(1); }} />}
+        title={tr('sessions.title')}
+        subtitle={tr('sessions.subtitle', { n: data?.total ?? 0 })}
+        extra={<Segmented options={rangeOptions} value={range} onChange={(v) => { setRange(v as RangeKey); setPage(1); }} />}
       />
       <Row gutter={14} style={{ marginBottom: 16 }}>
-        <Col span={6}><KpiCard title="会话数" value={stats.count} /></Col>
-        <Col span={6}><KpiCard title="总成本" value={stats.totalCostUsd} precision={2} suffix="$" /></Col>
-        <Col span={6}><KpiCard title="平均成本" value={stats.avgCostUsd} precision={4} suffix="$" /></Col>
-        <Col span={6}><KpiCard title="中位时长" value={Math.round(stats.medianDurationMs / 60000)} suffix=" 分" /></Col>
+        <Col span={6}><KpiCard title={tr('sessions.kpiCount')} value={stats.count} /></Col>
+        <Col span={6}><KpiCard title={tr('sessions.kpiTotalCost')} value={stats.totalCostUsd} precision={2} suffix="$" /></Col>
+        <Col span={6}><KpiCard title={tr('sessions.kpiAvgCost')} value={stats.avgCostUsd} precision={4} suffix="$" /></Col>
+        <Col span={6}><KpiCard title={tr('sessions.kpiMedianDuration')} value={Math.round(stats.medianDurationMs / 60000)} suffix={tr('sessions.medianDurationUnit')} /></Col>
       </Row>
 
       <div style={{ marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: t.textSecondary }}>项目</span>
+        <span style={{ fontSize: 12, color: t.textSecondary }}>{tr('sessions.filter.project')}</span>
         <Select<string[]>
           mode="multiple"
           allowClear
           style={{ minWidth: 280 }}
-          placeholder="全部项目"
+          placeholder={tr('sessions.filter.allProjects')}
           value={projectDirs}
           onChange={(v) => { setProjectDirs(v); setPage(1); }}
           options={(projects.data ?? []).map(p => ({
             label: p.displayName, value: p.projectDir,
           }))}
         />
-        <span style={{ fontSize: 12, color: t.textSecondary }}>供应商</span>
+        <span style={{ fontSize: 12, color: t.textSecondary }}>{tr('sessions.filter.provider')}</span>
         <Select<string[]>
           mode="multiple"
           allowClear
           style={{ minWidth: 200 }}
-          placeholder="全部供应商"
+          placeholder={tr('sessions.filter.allProviders')}
           value={providerSlugs}
           onChange={(v) => { setProviderSlugs(v); setPage(1); }}
           options={(providers.data ?? []).map(p => ({
             label: p.displayName, value: p.slug,
           }))}
         />
-        <span style={{ fontSize: 12, color: t.textSecondary }}>发起方</span>
+        <span style={{ fontSize: 12, color: t.textSecondary }}>{tr('sessions.filter.originator')}</span>
         <Select
           allowClear
           style={{ minWidth: 130 }}
-          placeholder="全部"
+          placeholder={tr('sessions.filter.all')}
           value={originator}
           onChange={(v) => { setOriginator(v ?? null); setPage(1); }}
-          options={ORIGINATOR_OPTIONS}
+          options={originatorOptions}
         />
       </div>
 
@@ -169,7 +171,7 @@ export default function SessionsList() {
           total: data?.total ?? 0,
           pageSizeOptions: [10, 15, 20, 50, 100],
           showSizeChanger: true,
-          showTotal: (total) => `共 ${total} 条`,
+          showTotal: (total) => tr('common.totalCount', { n: total }),
         }}
         onChange={((pag, _filters, sorter) => {
           if (pag.current && pag.current !== page) setPage(pag.current);
@@ -191,11 +193,11 @@ export default function SessionsList() {
         }) as TableProps<SessionsListResponse['items'][number]>['onChange']}
         columns={[
           {
-            title: '会话', dataIndex: 'sessionId', width: 120,
+            title: tr('sessions.col.session'), dataIndex: 'sessionId', width: 120,
             render: (sid: string) => <Link to={`/sessions/${sid}`}>{sid.slice(0, 8)}…</Link>,
           },
           {
-            title: '项目', dataIndex: 'projectDir', width: 200,
+            title: tr('sessions.col.project'), dataIndex: 'projectDir', width: 200,
             render: (dir: string) => {
               const p = projectByDir.get(dir);
               const name = p?.displayName ?? dir.split(/[\\/]/).pop() ?? dir;
@@ -208,18 +210,18 @@ export default function SessionsList() {
             },
           },
           {
-            title: 'Source', dataIndex: 'source', width: 90,
+            title: tr('sessions.col.source'), dataIndex: 'source', width: 90,
             render: (v: string | null) => v === 'codex'
               ? <Tag color="geekblue">Codex</Tag>
               : <Tag color="purple">Claude</Tag>,
           },
           {
-            title: '开始时间', dataIndex: 'startedAt', key: 'startedAt', width: 170,
+            title: tr('sessions.col.startedAt'), dataIndex: 'startedAt', key: 'startedAt', width: 170,
             sorter: true, sortOrder: sortBy === 'startedAt' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
             render: (v) => new Date(v).toLocaleString(),
           },
           {
-            title: '时长', key: 'duration', width: 95,
+            title: tr('sessions.col.duration'), key: 'duration', width: 95,
             sorter: true, sortOrder: sortBy === 'duration' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
             render: (_: unknown, r: { startedAt: number; endedAt: number }) => {
               const { color, text } = durationTag(r.endedAt - r.startedAt);
@@ -227,27 +229,27 @@ export default function SessionsList() {
             },
           },
           {
-            title: '消息数', dataIndex: 'messageCount', key: 'messageCount', align: 'right', width: 95,
+            title: tr('sessions.col.messages'), dataIndex: 'messageCount', key: 'messageCount', align: 'right', width: 95,
             sorter: true, sortOrder: sortBy === 'messageCount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
           },
           {
-            title: 'Token', dataIndex: 'totalTokens', key: 'totalTokens', align: 'right', width: 115,
+            title: tr('sessions.col.tokens'), dataIndex: 'totalTokens', key: 'totalTokens', align: 'right', width: 115,
             sorter: true, sortOrder: sortBy === 'totalTokens' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
             render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(v)}</span>,
           },
           {
-            title: '成本 ($)', dataIndex: 'totalCostUsd', key: 'totalCostUsd', align: 'right', width: 115,
+            title: tr('sessions.col.cost'), dataIndex: 'totalCostUsd', key: 'totalCostUsd', align: 'right', width: 115,
             sorter: true, sortOrder: sortBy === 'totalCostUsd' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
             render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,
           },
           {
-            title: 'Top 工具', dataIndex: 'topTools', width: 240,
+            title: tr('sessions.col.topTools'), dataIndex: 'topTools', width: 240,
             render: (tools: string[]) => {
               const shown = tools.slice(0, 3);
               const rest = tools.length - shown.length;
               return (
                 <>
-                  {shown.map(t => <Tag key={t} color={hashColor(t)}>{t}</Tag>)}
+                  {shown.map(tag => <Tag key={tag} color={hashColor(tag)}>{tag}</Tag>)}
                   {rest > 0 && <Tag>+{rest}</Tag>}
                 </>
               );

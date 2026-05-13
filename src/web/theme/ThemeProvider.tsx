@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
 import { ThemeContext } from './useTheme.js';
 import { TOKENS, RADIUS, type Mode } from './tokens.js';
+import { useI18n } from '../i18n/index.js';
 
 const STORAGE_KEY = 'ccTheme';
 
@@ -13,6 +13,7 @@ function readStoredMode(): Mode {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>(() => readStoredMode());
+  const { antdLocale } = useI18n();
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, mode);
@@ -40,7 +41,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return (
     <ThemeContext.Provider value={ctx}>
       <ConfigProvider
-        locale={zhCN}
+        locale={antdLocale}
         theme={{
           algorithm: mode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
           token: {

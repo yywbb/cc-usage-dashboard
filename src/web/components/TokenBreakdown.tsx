@@ -1,5 +1,6 @@
 import { useTheme } from '../theme/useTheme.js';
 import { TOKENS } from '../theme/tokens.js';
+import { useI18n } from '../i18n/index.js';
 
 export interface TokenTotals {
   inputTokens: number;
@@ -24,14 +25,15 @@ export default function TokenBreakdown({
 }) {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
   const rate = cacheHitRate ?? computeCacheHitRate(totals);
   const total = totals.inputTokens + totals.outputTokens + totals.cacheCreate + totals.cacheRead;
 
   const rows = [
-    { key: 'input',       label: 'Input',        value: totals.inputTokens,  color: t.chartPalette[0] },
-    { key: 'output',      label: 'Output',       value: totals.outputTokens, color: t.chartPalette[1] },
-    { key: 'cacheCreate', label: 'Cache create', value: totals.cacheCreate,  color: t.chartPalette[2] },
-    { key: 'cacheRead',   label: 'Cache read',   value: totals.cacheRead,    color: t.chartPalette[3] },
+    { key: 'input',       label: tr('tokens.input'),       value: totals.inputTokens,  color: t.chartPalette[0] },
+    { key: 'output',      label: tr('tokens.output'),      value: totals.outputTokens, color: t.chartPalette[1] },
+    { key: 'cacheCreate', label: tr('tokens.cacheCreate'), value: totals.cacheCreate,  color: t.chartPalette[2] },
+    { key: 'cacheRead',   label: tr('tokens.cacheRead'),   value: totals.cacheRead,    color: t.chartPalette[3] },
   ];
 
   return (
@@ -70,9 +72,9 @@ export default function TokenBreakdown({
         fontSize: 12,
       }}>
         <span style={{ color: t.textSecondary }}>
-          缓存命中率
+          {tr('tokens.cacheHitRate')}
           <span style={{ color: t.textMuted, marginLeft: 4 }}>
-            (cache-read ÷ input+cache-create+cache-read)
+            {tr('tokens.cacheHitFormula')}
           </span>
         </span>
         <span style={{ fontVariantNumeric: 'tabular-nums', color: t.textPrimary, fontWeight: 700 }}>

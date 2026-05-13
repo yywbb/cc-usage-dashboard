@@ -1,10 +1,12 @@
 import { Button, Tooltip } from 'antd';
 import { MoonOutlined, SunOutlined } from '@ant-design/icons';
 import { useTheme } from '../theme/useTheme.js';
+import { useI18n } from '../i18n/index.js';
 
 export default function ThemeToggle() {
   const { mode, toggle } = useTheme();
-  const label = mode === 'dark' ? '切到浅色' : '切到暗色';
+  const { t } = useI18n();
+  const label = mode === 'dark' ? t('theme.toLight') : t('theme.toDark');
   return (
     <Tooltip title={label} placement="bottom">
       <Button

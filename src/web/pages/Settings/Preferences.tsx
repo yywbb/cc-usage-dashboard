@@ -1,12 +1,14 @@
-import { Card, Switch, Space } from 'antd';
+import { Card, Switch, Space, Segmented } from 'antd';
 import { useStore } from '../../store.js';
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { formatTokensCompact, formatTokensExact } from '../../format.js';
+import { useI18n, type Lang } from '../../i18n/index.js';
 
 export default function Preferences() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr, lang, setLang } = useI18n();
   const compact = useStore(s => s.compactNumbers);
   const setCompact = useStore(s => s.setCompactNumbers);
 
@@ -16,17 +18,32 @@ export default function Preferences() {
     <Card>
       <Space direction="vertical" size={18} style={{ width: '100%' }}>
         <Row
-          title="紧凑数字显示"
-          desc={`Token 与同类大数字默认转换为 k / M / B 单位,便于扫读。关闭后显示完整千分位数字。例如 ${
-            compact ? formatTokensCompact(sample) : formatTokensExact(sample)
-          }。`}
+          title={tr('pref.lang.title')}
+          desc={tr('pref.lang.desc')}
+          t={t}
+          control={
+            <Segmented
+              value={lang}
+              onChange={(v) => setLang(v as Lang)}
+              options={[
+                { label: tr('pref.lang.zh'), value: 'zh' },
+                { label: tr('pref.lang.en'), value: 'en' },
+              ]}
+            />
+          }
+        />
+        <Row
+          title={tr('pref.compact.title')}
+          desc={tr('pref.compact.desc', {
+            sample: compact ? formatTokensCompact(sample) : formatTokensExact(sample),
+          })}
           t={t}
           control={
             <Switch
               checked={compact}
               onChange={setCompact}
-              checkedChildren="紧凑"
-              unCheckedChildren="完整"
+              checkedChildren={tr('pref.compact.on')}
+              unCheckedChildren={tr('pref.compact.off')}
             />
           }
         />

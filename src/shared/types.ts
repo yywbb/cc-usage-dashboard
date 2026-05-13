@@ -212,6 +212,14 @@ export interface MonitorConfig {
 
 export interface MonitorAlert {
   ruleId: string;
+  /** Pre-rendered Chinese title — used by desktop notifications and as a fallback. */
   title:  string;
+  /** Pre-rendered Chinese body — used by desktop notifications and as a fallback. */
   body:   string;
+  /** i18n key for the title (web UI translates with `vars`). */
+  titleKey?: string;
+  /** i18n key for the body. */
+  bodyKey?:  string;
+  /** Variables for the i18n template interpolation. */
+  vars?: Record<string, string | number>;
 }

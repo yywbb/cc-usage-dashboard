@@ -12,12 +12,14 @@ import { TOKENS } from '../../theme/tokens.js';
 import { echartsThemeName } from '../../theme/echarts.js';
 import { useFormatTokens } from '../../format.js';
 import { useStore } from '../../store.js';
+import { useI18n } from '../../i18n/index.js';
 
 type Granularity = 'day' | 'week' | 'month';
 
 export default function Cost() {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
   const fmtTokens = useFormatTokens();
   const [gran, setGran] = useState<Granularity>('day');
   const [q, setQ] = useState('');
@@ -60,7 +62,7 @@ export default function Cost() {
   }));
   if (otherProjects.size > 0) {
     series.push({
-      name: `其他(${otherProjects.size})`,
+      name: tr('cost.others', { n: otherProjects.size }),
       type: 'bar',
       stack: 'all',
       itemStyle: { color: mode === 'dark' ? '#475569' : '#cbd5e1' },
@@ -97,13 +99,13 @@ export default function Cost() {
 
   const projectLegend = [
     ...topProjects.map(shortProjectName),
-    ...(otherProjects.size > 0 ? [`其他(${otherProjects.size})`] : []),
+    ...(otherProjects.size > 0 ? [tr('cost.others', { n: otherProjects.size })] : []),
   ];
 
   const showCum = overlays.includes('cum');
-  const STAT_TOTAL = '总额';
-  const STAT_MA = `均线(${maWindow})`;
-  const STAT_CUM = '累计';
+  const STAT_TOTAL = tr('cost.stat.total');
+  const STAT_MA = tr('cost.stat.ma', { n: maWindow });
+  const STAT_CUM = tr('cost.stat.cum');
   const totalColor = mode === 'dark' ? '#f472b6' : '#db2777';
   const maColor = mode === 'dark' ? '#fbbf24' : '#d97706';
   const cumColor = mode === 'dark' ? '#5eead4' : '#0d9488';
@@ -156,14 +158,14 @@ export default function Cost() {
   return (
     <>
       <PageHeader
-        title="成本"
-        subtitle="周期聚合 + z-score 异常检测"
+        title={tr('cost.title')}
+        subtitle={tr('cost.subtitle')}
         extra={
           <Segmented
             options={[
-              { label: '日', value: 'day' },
-              { label: '周', value: 'week' },
-              { label: '月', value: 'month' },
+              { label: tr('cost.gran.day'), value: 'day' },
+              { label: tr('cost.gran.week'), value: 'week' },
+              { label: tr('cost.gran.month'), value: 'month' },
             ]}
             value={gran}
             onChange={(v) => setGran(v as Granularity)}
@@ -172,24 +174,24 @@ export default function Cost() {
       />
 
       <Row gutter={14} style={{ marginBottom: 16 }}>
-        <Col span={6}><KpiCard title="周期总成本" value={totalCost} precision={2} suffix="$" /></Col>
-        <Col span={6}><KpiCard title="周期均值"   value={avgCost} precision={2} suffix="$" /></Col>
-        <Col span={6}><KpiCard title="峰值"       value={peakCost} precision={2} suffix="$" /></Col>
-        <Col span={6}><KpiCard title="异常周期"   value={anomalies.length} suffix=" 个" /></Col>
+        <Col span={6}><KpiCard title={tr('cost.kpi.total')} value={totalCost} precision={2} suffix="$" /></Col>
+        <Col span={6}><KpiCard title={tr('cost.kpi.average')}   value={avgCost} precision={2} suffix="$" /></Col>
+        <Col span={6}><KpiCard title={tr('cost.kpi.peak')}       value={peakCost} precision={2} suffix="$" /></Col>
+        <Col span={6}><KpiCard title={tr('cost.kpi.anomalies')}   value={anomalies.length} suffix={tr('cost.kpi.anomaliesSuffix')} /></Col>
       </Row>
 
       <Row gutter={14}>
         <Col span={18}>
           <Card
-            title="成本堆叠(按项目)"
+            title={tr('cost.stackTitle')}
             extra={
               <Space size={4}>
-                <span style={{ fontSize: 11, color: t.textSecondary }}>趋势</span>
+                <span style={{ fontSize: 11, color: t.textSecondary }}>{tr('cost.overlay.trend')}</span>
                 <Checkbox.Group
                   options={[
-                    { label: '总额', value: 'total' },
-                    { label: '均线', value: 'ma' },
-                    { label: '累计', value: 'cum' },
+                    { label: tr('cost.overlay.total'), value: 'total' },
+                    { label: tr('cost.overlay.ma'), value: 'ma' },
+                    { label: tr('cost.overlay.cum'), value: 'cum' },
                   ]}
                   value={overlays}
                   onChange={(v) => setOverlays(v as Overlay[])}
@@ -256,7 +258,7 @@ export default function Cost() {
                 yAxis: showCum
                   ? [
                       { type: 'value', name: '$' },
-                      { type: 'value', name: '累计 $', splitLine: { show: false } },
+                      { type: 'value', name: tr('cost.axis.cum'), splitLine: { show: false } },
                     ]
                   : { type: 'value', name: '$' },
                 series,
@@ -265,7 +267,7 @@ export default function Cost() {
           </Card>
         </Col>
         <Col span={6}>
-          <Card title={`异常周期(z > 2) · ${anomalies.length}`}>
+          <Card title={tr('cost.anomalyCard', { n: anomalies.length })}>
             <Table
               size="small"
               rowKey="date"
@@ -273,7 +275,7 @@ export default function Cost() {
               pagination={false}
               rowClassName={() => 'cc-anomaly-row'}
               columns={[
-                { title: '日期', dataIndex: 'date' },
+                { title: tr('cost.col.date'), dataIndex: 'date' },
                 { title: '$',    dataIndex: 'costUsd', align: 'right', render: (v: number) => v.toFixed(2) },
                 { title: 'z',    dataIndex: 'zScore',  align: 'right', render: (v: number) => v.toFixed(2) },
               ]}
@@ -283,19 +285,19 @@ export default function Cost() {
       </Row>
 
       <Card
-        title="账单明细"
+        title={tr('cost.detailsTitle')}
         style={{ marginTop: 16 }}
         extra={
           <div style={{ display: 'flex', gap: 8 }}>
             <Input
               prefix={<SearchOutlined />}
-              placeholder="按周期搜索"
+              placeholder={tr('cost.searchPlaceholder')}
               allowClear
               value={q}
               onChange={(e) => setQ(e.target.value)}
               style={{ width: 180 }}
             />
-            <Button icon={<DownloadOutlined />} onClick={() => downloadCsv(data)}>导出 CSV</Button>
+            <Button icon={<DownloadOutlined />} onClick={() => downloadCsv(data)}>{tr('cost.exportCsv')}</Button>
           </div>
         }
       >
@@ -307,11 +309,11 @@ export default function Cost() {
             defaultPageSize: 15,
             pageSizeOptions: [10, 15, 20, 50, 100],
             showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
+            showTotal: (total) => tr('common.totalCount', { n: total }),
           }}
           rowClassName={(r) => anomalyKeys.has(r.bucketKey) ? 'cc-anomaly-row' : ''}
           columns={[
-            { title: '周期', dataIndex: 'bucketKey' },
+            { title: tr('cost.col.bucket'), dataIndex: 'bucketKey' },
             {
               title: '$', dataIndex: 'costUsd', align: 'right', width: 120,
               render: (v: number) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v.toFixed(4)}</span>,

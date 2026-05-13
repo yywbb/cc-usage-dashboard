@@ -11,6 +11,7 @@ import TokenBreakdown, { computeCacheHitRate } from '../../components/TokenBreak
 import { useTheme } from '../../theme/useTheme.js';
 import { echartsThemeName, formatCompactNumber } from '../../theme/echarts.js';
 import { useFormatTokens } from '../../format.js';
+import { useI18n } from '../../i18n/index.js';
 
 interface Detail {
   session: {
@@ -35,6 +36,7 @@ function hashColor(name: string): string {
 export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { mode } = useTheme();
+  const { t: tr } = useI18n();
   const fmtTokens = useFormatTokens();
   const { data } = useQuery({
     queryKey: ['session', sessionId],
@@ -57,7 +59,7 @@ export default function SessionDetail() {
   const isCodex = data.session.source === 'codex';
 
   const messageColumns: TableColumnsType<MessageRow> = [
-    { title: '时间', dataIndex: 'timestamp', width: 110, render: (v) => new Date(v).toLocaleTimeString() },
+    { title: tr('sessions.detail.col.time'), dataIndex: 'timestamp', width: 110, render: (v) => new Date(v).toLocaleTimeString() },
     {
       title: 'role', dataIndex: 'role', width: 90,
       render: (r: string) => <Tag color={r === 'assistant' ? 'blue' : 'default'}>{r}</Tag>,
@@ -108,13 +110,13 @@ export default function SessionDetail() {
   return (
     <>
       <PageHeader
-        title={`会话 ${data.session.sessionId.slice(0, 8)}…`}
+        title={tr('sessions.detail.title', { id: data.session.sessionId.slice(0, 8) })}
         subtitle={new Date(data.session.startedAt).toLocaleString()}
       />
 
       <Row gutter={14} style={{ marginBottom: 16 }}>
-        <Col flex="1 1 0"><KpiCard title="消息数" value={data.session.messageCount} /></Col>
-        <Col flex="1 1 0"><KpiCard title="时长" value={durationMin} suffix=" 分" /></Col>
+        <Col flex="1 1 0"><KpiCard title={tr('sessions.detail.kpi.messages')} value={data.session.messageCount} /></Col>
+        <Col flex="1 1 0"><KpiCard title={tr('sessions.detail.kpi.duration')} value={durationMin} suffix={tr('sessions.detail.kpi.durationUnit')} /></Col>
         <Col flex="1 1 0">
           <Popover
             placement="bottomLeft"
@@ -124,23 +126,23 @@ export default function SessionDetail() {
             }
           >
             <div style={{ cursor: 'help' }}>
-              <KpiCard title="总 Token" value={totalTokens} formatter={fmtTokens} />
+              <KpiCard title={tr('sessions.detail.kpi.totalToken')} value={totalTokens} formatter={fmtTokens} />
             </div>
           </Popover>
         </Col>
         <Col flex="1 1 0">
-          <KpiCard title="缓存命中率" value={cacheHitRate * 100} precision={1} suffix="%" />
+          <KpiCard title={tr('sessions.detail.kpi.cacheHit')} value={cacheHitRate * 100} precision={1} suffix="%" />
         </Col>
-        <Col flex="1 1 0"><KpiCard title="成本" value={data.session.totalCostUsd} precision={4} suffix="$" /></Col>
+        <Col flex="1 1 0"><KpiCard title={tr('sessions.detail.kpi.cost')} value={data.session.totalCostUsd} precision={4} suffix="$" /></Col>
         {data.session.source === 'codex' && (
           <Col flex="1 1 0">
-            <KpiCard title="Reasoning tokens" value={data.session.totalReasoning} formatter={fmtTokens} />
+            <KpiCard title={tr('sessions.detail.kpi.reasoning')} value={data.session.totalReasoning} formatter={fmtTokens} />
           </Col>
         )}
         {data.rateLimit && (
           <Col flex="1 1 0">
             <KpiCard
-              title="Codex 5h / 7d"
+              title={tr('sessions.detail.kpi.codex')}
               value={0}
               formatter={() =>
                 `${data.rateLimit!.primaryUsedPct?.toFixed(1) ?? '-'}% / ${data.rateLimit!.secondaryUsedPct?.toFixed(1) ?? '-'}%`
@@ -152,7 +154,7 @@ export default function SessionDetail() {
 
       <Row gutter={14} style={{ marginBottom: 16 }}>
         <Col span={16}>
-          <Card title="消息时间线 · token 分布">
+          <Card title={tr('sessions.detail.timeline')}>
             <ReactECharts
               theme={echartsThemeName(mode)}
               style={{ height: 280 }}
@@ -181,7 +183,7 @@ export default function SessionDetail() {
           </Card>
         </Col>
         <Col span={8}>
-          <Card title="工具调用分布">
+          <Card title={tr('sessions.detail.toolPie')}>
             <ReactECharts
               theme={echartsThemeName(mode)}
               style={{ height: 280 }}
@@ -200,7 +202,7 @@ export default function SessionDetail() {
         </Col>
       </Row>
 
-      <Card title="消息详情">
+      <Card title={tr('sessions.detail.messages')}>
         <Table<MessageRow>
           size="small"
           rowKey="messageId"
@@ -209,12 +211,12 @@ export default function SessionDetail() {
             defaultPageSize: 15,
             pageSizeOptions: [10, 15, 20, 50, 100],
             showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
+            showTotal: (total) => tr('common.totalCount', { n: total }),
           }}
           expandable={{
             expandedRowRender: (r) => (
               <div style={{ fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {r.textPreview || <span style={{ opacity: 0.6 }}>(无文本预览)</span>}
+                {r.textPreview || <span style={{ opacity: 0.6 }}>{tr('sessions.detail.noPreview')}</span>}
               </div>
             ),
             rowExpandable: (r) => !!r.textPreview,

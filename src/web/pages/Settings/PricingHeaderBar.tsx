@@ -3,6 +3,7 @@ import { ReloadOutlined, WarningFilled, InfoCircleOutlined } from '@ant-design/i
 import { useTheme } from '../../theme/useTheme.js';
 import { TOKENS } from '../../theme/tokens.js';
 import { formatRelative } from './lastRecomputeAt.js';
+import { useI18n } from '../../i18n/index.js';
 
 interface Props {
   providerCount: number;
@@ -13,23 +14,21 @@ interface Props {
   onRecompute: () => void;
 }
 
-const RECOMPUTE_HINT
-  = '新数据落库时按消息时间戳查窗口价；修改价格不影响已存入的成本，需要手动「重算历史成本」。';
-
 export default function PricingHeaderBar({
   providerCount, modelCount, unconfiguredCount,
   lastRecomputeAt, isRecomputing, onRecompute,
 }: Props) {
   const { mode } = useTheme();
   const t = TOKENS[mode];
+  const { t: tr } = useI18n();
 
   return (
     <Card style={{ marginBottom: 12 }} styles={{ body: { padding: '14px 18px' } }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap' }}>
-        <Kpi label="供应商" value={providerCount} t={t} />
-        <Kpi label="模型" value={modelCount} t={t} />
+        <Kpi label={tr('pricing.kpi.providers')} value={providerCount} t={t} />
+        <Kpi label={tr('pricing.kpi.models')} value={modelCount} t={t} />
         <Kpi
-          label="未配置"
+          label={tr('pricing.kpi.unconfigured')}
           value={unconfiguredCount}
           warn={unconfiguredCount > 0}
           icon={unconfiguredCount > 0 ? <WarningFilled style={{ color: t.warning }} /> : undefined}
@@ -38,8 +37,8 @@ export default function PricingHeaderBar({
         <Kpi
           label={
             <Space size={4}>
-              <span>上次重算</span>
-              <Tooltip title={RECOMPUTE_HINT}>
+              <span>{tr('pricing.kpi.lastRecompute')}</span>
+              <Tooltip title={tr('pricing.recomputeHint')}>
                 <InfoCircleOutlined style={{ color: t.textMuted, cursor: 'help' }} />
               </Tooltip>
             </Space>
@@ -53,7 +52,7 @@ export default function PricingHeaderBar({
           icon={<ReloadOutlined />}
           loading={isRecomputing}
           onClick={onRecompute}
-        >重算历史成本</Button>
+        >{tr('pricing.recomputeBtn')}</Button>
       </div>
     </Card>
   );
