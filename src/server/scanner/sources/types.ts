@@ -1,4 +1,4 @@
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../../db.js';
 import type { ScanResult } from '../../../shared/types.js';
 
 export type SourceId = 'claude' | 'codex';

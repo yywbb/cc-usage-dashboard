@@ -1,4 +1,5 @@
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from './db.js';
+import { withTransaction } from './db.js';
 import { DEFAULT_PRICING_PER_M } from './pricing.js';
 
 const OPENAI_MODELS = new Set([
@@ -40,7 +41,7 @@ export function syncKnownModels(db: DatabaseType): void {
      WHERE model_name = ?
        AND provider_id = (SELECT id FROM providers WHERE slug = 'unknown')`,
   );
-  const tx = db.transaction(() => {
+  withTransaction(db, () => {
     for (const model of Object.keys(DEFAULT_PRICING_PER_M)) {
       const slug = OPENAI_MODELS.has(model) ? 'openai' : 'anthropic';
       const pid = idBySlug.get(slug);
@@ -49,5 +50,4 @@ export function syncKnownModels(db: DatabaseType): void {
       reclassifyStmt.run(pid, now, model);
     }
   });
-  tx();
 }

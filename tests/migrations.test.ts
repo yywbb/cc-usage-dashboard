@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import Database from 'better-sqlite3';
+import { createRequire } from 'node:module';
+import type { DatabaseSync } from 'node:sqlite';
 import { openDb } from '../src/server/db.js';
 import { mkdtempSync, readdirSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -10,6 +11,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIG_DIR = join(__dirname, '../src/server/migrations');
 const MIG_001 = join(__dirname, '../src/server/migrations/001_init.sql');
 const MIG_002 = join(__dirname, '../src/server/migrations/002_pricing_overrides.sql');
+const require = createRequire(import.meta.url);
+const { DatabaseSync: Database } = require('node:sqlite') as { DatabaseSync: typeof DatabaseSync };
 
 function rmRetry(dir: string) {
   for (let i = 0; i < 5; i++) {

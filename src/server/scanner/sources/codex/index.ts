@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../../../db.js';
 import type { ScanSource } from '../types.js';
 import type { ScanResult } from '../../../../shared/types.js';
 import { defaultCodexHome, syntheticProjectDir } from './paths.js';

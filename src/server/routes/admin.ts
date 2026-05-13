@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
+import { withTransaction } from '../db.js';
 import { scanAll } from '../scanner/index.js';
 import { loadPriceCtx, priceFor, applyPrice } from '../pricing.js';
 import { recomputeSession } from '../scanner/writer.js';
@@ -39,7 +40,7 @@ export async function registerAdmin(app: FastifyInstance, deps: AdminDeps) {
     const stmt = deps.db.prepare('UPDATE messages SET cost_usd = ? WHERE message_id = ?');
     const ctx = loadPriceCtx(deps.db);
     let unconfiguredCount = 0;
-    const tx = deps.db.transaction(() => {
+    withTransaction(deps.db, () => {
       for (const r of rows) {
         const price = priceFor(ctx, r.model, r.timestamp);
         let cost = 0;
@@ -57,7 +58,6 @@ export async function registerAdmin(app: FastifyInstance, deps: AdminDeps) {
         stmt.run(cost, r.message_id);
       }
     });
-    tx();
     const sids = deps.db.prepare('SELECT session_id FROM sessions').all() as Array<{ session_id: string }>;
     for (const { session_id } of sids) recomputeSession(deps.db, session_id);
     const total = (deps.db.prepare(

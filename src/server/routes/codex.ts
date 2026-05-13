@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
 
 export function registerCodex(app: FastifyInstance, db: DatabaseType) {
   // Latest snapshot — i.e. the rate-limit usage as of Codex's most recent report.

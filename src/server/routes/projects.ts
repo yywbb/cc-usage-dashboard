@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
 import { decodeProjectDir } from '../paths.js';
 import type { ProjectRow } from '../../shared/types.js';
 

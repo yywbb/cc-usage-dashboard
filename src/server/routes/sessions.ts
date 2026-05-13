@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
 
 function median(sorted: number[]): number {
   if (sorted.length === 0) return 0;
@@ -62,11 +62,14 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
     const whereOriginator = originator
       ? `AND s.session_id IN (SELECT session_id FROM messages WHERE originator = @originator)`
       : '';
+    const baseParams: Record<string, string | number> = { from, to, ...projParams, ...provParams };
+    if (source) baseParams.source = source;
+    if (originator) baseParams.originator = originator;
 
     const totalRow = db.prepare(
       `SELECT COUNT(*) as n FROM sessions s
        WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv} ${whereSource} ${whereOriginator}`
-    ).get({ from, to, ...projParams, ...provParams, source, originator }) as { n: number };
+    ).get(baseParams) as { n: number };
     const total = totalRow.n;
 
     const rows = db.prepare(
@@ -80,7 +83,7 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
        WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv} ${whereSource} ${whereOriginator}
        ORDER BY ${SORT_COLUMN[sortBy]} ${sortOrder}, s.session_id ${sortOrder}
        LIMIT @limit OFFSET @offset`
-    ).all({ from, to, limit, offset, ...projParams, ...provParams, source, originator }) as Array<{
+    ).all({ ...baseParams, limit, offset }) as Array<{
       sessionId: string; projectDir: string; source: string | null; startedAt: number; endedAt: number;
       messageCount: number; totalTokens: number; totalCostUsd: number;
     }>;
@@ -103,7 +106,7 @@ export function registerSessions(app: FastifyInstance, db: DatabaseType) {
       `SELECT s.total_cost_usd as cost, s.ended_at - s.started_at as durMs
        FROM sessions s
        WHERE s.started_at BETWEEN @from AND @to ${whereProj} ${whereProv} ${whereSource} ${whereOriginator}`
-    ).all({ from, to, ...projParams, ...provParams, source, originator }) as Array<{ cost: number; durMs: number }>;
+    ).all(baseParams) as Array<{ cost: number; durMs: number }>;
 
     const totalCostUsd = statRows.reduce((a, r) => a + (r.cost ?? 0), 0);
     const count = statRows.length;

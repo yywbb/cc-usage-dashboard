@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
 import type { ScanResult } from '../../shared/types.js';
 import type { ScanSource, SourceId } from './sources/types.js';
 import { claudeSource } from './sources/claude/index.js';

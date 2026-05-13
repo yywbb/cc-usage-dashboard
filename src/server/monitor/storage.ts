@@ -1,4 +1,4 @@
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
 import type { CostMonitorRule, MonitorConfig, MonitorRules } from '../../shared/types.js';
 
 const KEY = 'monitor';

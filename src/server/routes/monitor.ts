@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
 import type { MonitorConfig } from '../../shared/types.js';
 import { loadMonitorConfig, saveMonitorConfig, mergeMonitorConfig, normalizeCostSteps } from '../monitor/storage.js';
 import { evaluateRules } from '../monitor/rules.js';

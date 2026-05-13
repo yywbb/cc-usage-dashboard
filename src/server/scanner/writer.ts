@@ -1,4 +1,5 @@
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
+import { withTransaction } from '../db.js';
 import type { ParsedMessage, RateLimitSnapshot } from '../../shared/types.js';
 import { loadPriceCtx, priceFor, applyPrice } from '../pricing.js';
 
@@ -34,9 +35,9 @@ export function insertMessages(
         source, originator, response_error)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
-  const tx = db.transaction((rows: ParsedMessage[]) => {
+  return withTransaction(db, () => {
     let inserted = 0;
-    for (const m of rows) {
+    for (const m of msgs) {
       let cost = 0;
       if (m.model) {
         const price = priceFor(ctx, m.model, m.timestamp);
@@ -60,7 +61,6 @@ export function insertMessages(
     }
     return inserted;
   });
-  return tx(msgs);
 }
 
 export function ensureSession(

@@ -5,11 +5,11 @@ export default defineConfig({
   format: ['esm'],
   outDir: 'dist/server',
   clean: true,
-  target: 'node20',
+  target: 'node22',
   shims: true,
   sourcemap: true,
   noExternal: [],
-  external: ['better-sqlite3'],
+  external: [],
   async onSuccess() {
     const { cpSync, mkdirSync } = await import('node:fs');
     const { join } = await import('node:path');

@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join, basename } from 'node:path';
 import { readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../../../db.js';
 import { parseJsonlLine } from './parser.js';
 import { insertMessages, upsertProject, recomputeSession } from '../../writer.js';
 import { getCursor, upsertCursor } from '../../cursor.js';

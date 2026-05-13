@@ -6,8 +6,10 @@
 
 ## 要求
 
-- Node.js 20 或更高版本
+- Node.js 22.13 或更高版本
 - 本机已有 Claude Code 或 Codex CLI 会话日志
+
+`cc-usage-dashboard` 使用 Node 内置 SQLite，不需要安装 Python、Visual Studio Build Tools 或其它原生编译工具。
 
 ## 安装
 

@@ -1,4 +1,4 @@
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
 
 export interface CursorRow {
   filePath: string;

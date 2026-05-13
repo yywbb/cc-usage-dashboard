@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { DatabaseType } from '../db.js';
+import { withTransaction } from '../db.js';
 import { DEFAULT_PRICING_PER_M, type ModelPriceM } from '../pricing.js';
 
 interface PricingDeps {
@@ -86,12 +87,11 @@ export async function registerPricing(app: FastifyInstance, deps: PricingDeps) {
     if (!prov) { reply.code(404); return { error: 'not found' }; }
     if (prov.is_builtin) { reply.code(400); return { error: 'builtin provider cannot be deleted' }; }
     const unk = deps.db.prepare(`SELECT id FROM providers WHERE slug='unknown'`).get() as { id: number };
-    const tx = deps.db.transaction(() => {
+    withTransaction(deps.db, () => {
       deps.db.prepare(`UPDATE models SET provider_id=?, updated_at=? WHERE provider_id=?`)
              .run(unk.id, Date.now(), id);
       deps.db.prepare(`DELETE FROM providers WHERE id=?`).run(id);
     });
-    tx();
     return { id, deleted: true };
   });
 
